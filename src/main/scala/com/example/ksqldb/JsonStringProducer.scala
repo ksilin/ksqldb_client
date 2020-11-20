@@ -29,8 +29,9 @@ case class JsonStringProducer[K, V](bootstrapServers: String = "localhost:9092",
 
   def run(msgs: Iterable[ProducerRecord[K, String]],  sendDelayMs: Int = 100): Unit = {
     msgs foreach { r =>
+      println(s"producing $r")
       val res: RecordMetadata = producer.send(r).get
-      println(res)
+      println(s"${res.topic()}, | ${res.partition()} | ${res.offset()} | ${res.timestamp()}")
       Thread.sleep(sendDelayMs)
     }
   }

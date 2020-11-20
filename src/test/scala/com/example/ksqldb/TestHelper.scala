@@ -27,10 +27,13 @@ object TestHelper {
       } catch {
         case e: Throwable => println(e)
       }
+    } else {
+      println(s"topic $topicName already exists, skipping")
     }
   }
 
   def deleteTopic(topicName: String, adminClient: AdminClient): Any = {
+    println(s"deleting topic $topicName")
     try {
       val topicDeletionResult = adminClient.deleteTopics(List(topicName).asJava)
       topicDeletionResult.all().get()
@@ -52,24 +55,31 @@ object TestHelper {
 
       // find the queries listening to this stream:
       val queries: mutable.Seq[QueryInfo] = client.listQueries().get().asScala
-      println("existing queries: ")
-      queries foreach println
+      // println("existing queries: ")
+      // queries foreach println
 
       val relevantQueries = queries.filter(_.getSql.toUpperCase.contains(streamName.toUpperCase))
 
       println("queries for stream: ")
       relevantQueries foreach println
 
-      relevantQueries.foreach{ q => client.executeStatement(s"TERMINATE ${q.getId};").get()}
+      relevantQueries.foreach{ q =>
+        println(s"terminating ${q.getId}")
+        val res: ExecuteStatementResult = client.executeStatement(s"TERMINATE ${q.getId};").get()
+        println(res)
+      }
 
-      val streamDeleted: ExecuteStatementResult = client.executeStatement(s"DROP stream $streamName;").get()
+      val streamDeleted: ExecuteStatementResult = client.executeStatement(s"DROP STREAM IF EXISTS $streamName;").get()
       println(s"stream $streamName deleted: $streamDeleted")
     }
   }
 
-  def deleteTable(tableName: String, client: Client) = {
+  def deleteTable(tableName: String, client: Client): Unit = {
+    println(s"deleting table $tableName")
     client.listTables().get.asScala.find(t => t.getName.equalsIgnoreCase(tableName)).foreach { t =>
-      client.executeStatement(s"DROP TABLE $tableName;").get
+      try {client.executeStatement(s"DROP TABLE IF EXISTS $tableName;").get} catch {
+        case e: Throwable => println(s"failed to drop table $tableName: $e")
+      }
     }
   }
 

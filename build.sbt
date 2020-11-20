@@ -20,6 +20,7 @@ lazy val ksqldb_client =
         library.circeParser,
         library.monix,
         library.randomDataGen % Test,
+        library.scalaFaker % Test,
         library.scalatest % Test,
       ),
     )
@@ -53,6 +54,7 @@ lazy val library =
     val circeParser = "io.circe" %% "circe-parser" % Version.circe
     val monix = "io.monix" %% "monix" % "3.3.0"
     val randomDataGen = "com.danielasfregola" %% "random-data-generator" % "2.9"
+    val scalaFaker = "io.github.etspaceman" %% "scalacheck-faker" % "6.0.0"
 
     val scalatest = "org.scalatest" %% "scalatest" % Version.scalatest
   }
@@ -80,6 +82,7 @@ lazy val commonSettings =
       "confluentJenkins" at "https://jenkins-confluent-packages-beta-maven.s3.amazonaws.com/6.1.0-beta200715032424/1/maven/",
       "confluentJenkins2" at "https://jenkins-confluent-packages-beta-maven.s3.amazonaws.com/6.1.0-beta200916191548/1/maven/",
       Resolver.sonatypeRepo("releases"),
+      Resolver.bintrayRepo("wolfendale", "maven")
     ),
     scalafmtOnCompile := true,
   )
