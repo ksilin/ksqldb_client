@@ -1,19 +1,22 @@
 package com.example.ksqldb
 
+import java.io.PrintStream
 import java.util.Collections
 
-import io.confluent.ksql.api.client.{Client, ExecuteStatementResult, QueryInfo, SourceDescription, StreamInfo}
+import io.confluent.ksql.api.client.{Client, ExecuteStatementResult, QueryInfo, Row, SourceDescription, StreamInfo, TableInfo}
+import monix.execution.Ack
+import monix.execution.Ack.Continue
+import monix.reactive.Observer
 import org.apache.kafka.clients.admin.{AdminClient, CreateTopicsResult, NewTopic}
 import org.apache.kafka.common.config.TopicConfig
 
 import scala.jdk.CollectionConverters._
-
 import scala.collection.mutable
 
 object TestHelper {
 
 
-  def createTopic(adminClient: AdminClient, topicName: String, numberOfPartitions: Int, replicationFactor: Short): Unit = {
+  def createTopic(topicName: String, adminClient: AdminClient, numberOfPartitions: Int, replicationFactor: Short): Unit = {
     if (!adminClient.listTopics().names().get().contains(topicName)) {
       println("Creating topic {}", topicName)
 
@@ -53,20 +56,25 @@ object TestHelper {
         deleteTopic(topicName, adminClient)
       }
 
+      // TODO: use describe source instead of matching
+
       // find the queries listening to this stream:
       val queries: mutable.Seq[QueryInfo] = client.listQueries().get().asScala
       // println("existing queries: ")
       // queries foreach println
 
-      val relevantQueries = queries.filter(_.getSql.toUpperCase.contains(streamName.toUpperCase))
+      var relevantQueries = queries.filter(_.getSql.toUpperCase.contains(streamName.toUpperCase))
 
-      println("queries for stream: ")
-      relevantQueries foreach println
+      println(s"queries for stream $streamName: ")
+      relevantQueries.foreach(q => println(q.getId))
 
-      relevantQueries.foreach{ q =>
-        println(s"terminating ${q.getId}")
-        val res: ExecuteStatementResult = client.executeStatement(s"TERMINATE ${q.getId};").get()
-        println(res)
+      while(relevantQueries.nonEmpty) {
+        relevantQueries.foreach { q =>
+          println(s"terminating ${q.getId}")
+          val res: ExecuteStatementResult = client.executeStatement(s"TERMINATE ${q.getId};").get()
+          println(res)
+        }
+        relevantQueries = client.listQueries().get().asScala.filter(_.getSql.toUpperCase.contains(streamName.toUpperCase))
       }
 
       val streamDeleted: ExecuteStatementResult = client.executeStatement(s"DROP STREAM IF EXISTS $streamName;").get()
@@ -76,7 +84,16 @@ object TestHelper {
 
   def deleteTable(tableName: String, client: Client): Unit = {
     println(s"deleting table $tableName")
-    client.listTables().get.asScala.find(t => t.getName.equalsIgnoreCase(tableName)).foreach { t =>
+    client.listTables().get.asScala.find(t => t.getName.equalsIgnoreCase(tableName)).foreach { t: TableInfo =>
+
+    val tableDescription: SourceDescription = client.describeSource(t.getName).get
+      val allQueries: mutable.Seq[QueryInfo] = tableDescription.readQueries().asScala ++  tableDescription.writeQueries().asScala
+      allQueries foreach { q =>
+        println(s"terminating ${q.getId}")
+        val res: ExecuteStatementResult = client.executeStatement(s"TERMINATE ${q.getId};").get()
+        println(res)
+      }
+
       try {client.executeStatement(s"DROP TABLE IF EXISTS $tableName;").get} catch {
         case e: Throwable => println(s"failed to drop table $tableName: $e")
       }
@@ -95,6 +112,29 @@ object TestHelper {
     println("sqlStatement: " + sd.sqlStatement())
     println("readQueries: " + sd.readQueries())
     println("writeQueries: " + sd.writeQueries())
+  }
+
+  def makeRowObserver(prefix: String, out: PrintStream  = System.out): Observer[Row] = {
+    new Observer[Row] {
+
+      var pos = 0
+
+      def onNext(elem: Row): Ack = {
+        out.println(s"$pos: $prefix --> $elem")
+        pos += 1
+        Continue
+      }
+
+      def onError(ex: Throwable): Unit = {
+        out.println(s"$pos: $prefix --> $ex")
+        pos += 1
+      }
+
+      def onComplete(): Unit = {
+        out.println(s"$pos: $prefix completed")
+        pos += 1
+      }
+    }
   }
 
 }

@@ -60,9 +60,9 @@ class KsqlDbTableSpec extends AnyFreeSpec with Matchers with BeforeAndAfterAll {
 
     TestHelper.deleteStream(orderStreamName, client, adminClient)
 
-    TestHelper.createTopic(adminClient, userTopicName, 1, 1)
-    TestHelper.createTopic(adminClient, productTopicName, 1, 1)
-    TestHelper.createTopic(adminClient, orderTopicName, 1, 1)
+    TestHelper.createTopic( userTopicName, adminClient, 1, 1)
+    TestHelper.createTopic(productTopicName, adminClient, 1, 1)
+    TestHelper.createTopic(orderTopicName, adminClient, 1, 1)
 
     val userProducer = JsonStringProducer[String, User](adminBootstrapServers, userTopicName)
     val userRecords = userProducer.makeRecords((users map (d => d.id -> d)).toMap)

@@ -151,7 +151,7 @@ class KsqlDbLocalQuickstartSpec extends AnyFreeSpec with Matchers with BeforeAnd
 
     val topicName = "producerTestTopic"
 
-    TestHelper.createTopic(adminClient, topicName, 1, 1)
+    TestHelper.createTopic( topicName, adminClient, 1, 1)
 
     import TestData._
     import io.circe.generic.auto._
