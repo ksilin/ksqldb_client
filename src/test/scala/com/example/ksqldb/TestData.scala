@@ -82,4 +82,16 @@ object TestData extends RandomDataGenerator {
 
   }
 
+  case class Click(userId: String, element: String, userAgent: String, timestamp: Long)
+
+  implicit val genClick: Arbitrary[Click] = Arbitrary {
+    for {
+    userId <- Gen.oneOf(userIds)
+    element <- Arbitrary.arbitrary[internet.Slug]
+    userAgent <- Arbitrary.arbitrary[internet.UserAgent]
+    timestampOffset <- Gen.chooseNum(0, 100000)
+    } yield Click(userId, element.value, userAgent.value, System.currentTimeMillis() + timestampOffset)
+
+  }
+
 }
