@@ -142,6 +142,7 @@ class KsqlDbTableSpec extends AnyFreeSpec with Matchers with BeforeAndAfterAll {
     val stream: ExecuteStatementResult = client.executeStatement(createUserStreamSql).get()
     println(stream)
 
+    // CTAS
     // Your SELECT query produces a STREAM. Please use CREATE STREAM AS SELECT statement instead
     val createProductTableSql_stream = s"""CREATE TABLE $productTableName AS SELECT
                                     |id , description
@@ -149,6 +150,7 @@ class KsqlDbTableSpec extends AnyFreeSpec with Matchers with BeforeAndAfterAll {
                                     |EMIT CHANGES;
                                     |""".stripMargin
 
+    // requires an AGG
     val err = intercept[Throwable] { client.executeStatement(createProductTableSql_stream).get }
     err.getMessage.contains("our SELECT query produces a STREAM. Please use CREATE STREAM AS SELECT statement instead") mustBe true
 

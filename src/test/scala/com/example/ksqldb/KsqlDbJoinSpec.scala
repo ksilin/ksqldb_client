@@ -100,17 +100,17 @@ class KsqlDbJoinSpec extends AnyFreeSpec with Matchers with BeforeAndAfterAll { 
     println(stream)
 
     // only LEFT and INNER are supported
-
-    // table updates do nto produce new output, only updates on the stream side do
-
-    // assumed that all records are processed in timestamp order
+    // table updates do not produce new output, only updates on the stream side do
 
     // can contain NULL values for user name
     val leftJoinedStreamSql =
       s"""CREATE STREAM ${leftJoinedStreamName} AS
          | SELECT
          | c.userId as userId,
-         | u.name as userName,
+         | CASE
+         | WHEN u.name IS NULL THEN 'USER ' + userId + ' NOT_FOUND'
+         | ELSE u.name
+         | END as userName,
          | c.element,
          | c.timestamp as ts
          | FROM $clickStreamName c
@@ -133,10 +133,14 @@ class KsqlDbJoinSpec extends AnyFreeSpec with Matchers with BeforeAndAfterAll { 
          | c.userId as userId,
          | u.name as userName,
          | c.element,
-         | c.timestamp as ts
+         | c.timestamp as ts,
+         | c.ROWTIME as rt
          | FROM $clickStreamName c
          | INNER JOIN $userTableName u ON c.userId = u.id
          | EMIT CHANGES;""".stripMargin
+
+    // cannot use MAX here - requires a GROP BY for no reason
+    // max(c.ROWTIME, u.ROWTIME) as rt
 
     val innerJoinedStreamCreated: ExecuteStatementResult =
       client.executeStatement(innerJoinedStreamSql).get
