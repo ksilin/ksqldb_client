@@ -71,8 +71,12 @@ object TestHelper {
       while(relevantQueries.nonEmpty) {
         relevantQueries.foreach { q =>
           println(s"terminating ${q.getId}")
-          val res: ExecuteStatementResult = client.executeStatement(s"TERMINATE ${q.getId};").get()
-          println(res)
+           try {
+            val res: ExecuteStatementResult = client.executeStatement(s"""TERMINATE "${q.getId}";""").get()
+            println(res)
+          } catch {
+            case e: Throwable => println(s"failed to terminate query ${q.getId}: $e")
+          }
         }
         relevantQueries = client.listQueries().get().asScala.filter(_.getSql.toUpperCase.contains(streamName.toUpperCase))
       }
