@@ -118,7 +118,7 @@ object TestHelper {
     println("writeQueries: " + sd.writeQueries())
   }
 
-  def makeRowObserver(prefix: String, out: PrintStream  = System.out): Observer[Row] = {
+  def makeRowObserver(prefix: String, out: PrintStream  = System.out, nextPlugin: Option[(Row => Unit)] = None): Observer[Row] = {
     new Observer[Row] {
 
       var pos = 0
@@ -126,6 +126,7 @@ object TestHelper {
       def onNext(elem: Row): Ack = {
         out.println(s"$pos: $prefix --> $elem")
         pos += 1
+        nextPlugin.foreach(f => f(elem))
         Continue
       }
 

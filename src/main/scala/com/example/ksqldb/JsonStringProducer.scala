@@ -23,7 +23,7 @@ case class JsonStringProducer[K, V](bootstrapServers: String = "localhost:9092",
 
   val producer = new KafkaProducer[K, String](producerProperties)
 
-  def makeRecords(recordMap: Map[K, V] ): immutable.Iterable[ProducerRecord[K, String]] = {
+  def makeRecords(recordMap: Iterable[(K, V)] ): Iterable[ProducerRecord[K, String]] = {
     recordMap.map{ case (k,v) => new ProducerRecord[K, String](topic, k, v.asJson.noSpaces)}
   }
 

@@ -19,6 +19,12 @@ lazy val ksqldb_client =
         library.circeGeneric,
         library.circeParser,
         library.monix,
+        library.sttp,
+        library.sttpBackendOkHttp,
+        library.airframeLog,
+        library.wireMock % Test,
+        library.mockServer % Test,
+        library.mockServerClient % Test,
         library.randomDataGen % Test,
         library.scalaFaker % Test,
         library.scalatest % Test,
@@ -40,6 +46,8 @@ lazy val library =
       val betterFiles = "3.9.1"
       val kantan = "0.6.1"
       val circe = "0.13.0"
+      val sttp = "3.0.0-RC9"
+      val airframeLog = "20.12.1"
     }
 
     val clients = "org.apache.kafka" % "kafka-clients" % Version.kafka
@@ -53,6 +61,12 @@ lazy val library =
     val circeGeneric = "io.circe" %% "circe-generic" % Version.circe
     val circeParser = "io.circe" %% "circe-parser" % Version.circe
     val monix = "io.monix" %% "monix" % "3.3.0"
+    val sttp                = "com.softwaremill.sttp.client3" %% "core"                      % Version.sttp
+    val sttpBackendOkHttp   = "com.softwaremill.sttp.client3" %% "okhttp-backend"            % Version.sttp
+    val airframeLog = "org.wvlet.airframe" %% "airframe-log" % Version.airframeLog
+    val wireMock = "com.github.tomakehurst" % "wiremock" % "2.27.2"
+    val mockServer = "org.mock-server" % "mockserver-netty" % "5.11.2"
+    val mockServerClient = "org.mock-server" % "mockserver-client-java" % "5.11.2"
     val randomDataGen = "com.danielasfregola" %% "random-data-generator" % "2.9"
     val scalaFaker = "io.github.etspaceman" %% "scalacheck-faker" % "6.0.0"
 
@@ -82,7 +96,8 @@ lazy val commonSettings =
       "confluentJenkins" at "https://jenkins-confluent-packages-beta-maven.s3.amazonaws.com/6.1.0-beta200715032424/1/maven/",
       "confluentJenkins2" at "https://jenkins-confluent-packages-beta-maven.s3.amazonaws.com/6.1.0-beta200916191548/1/maven/",
       Resolver.sonatypeRepo("releases"),
-      Resolver.bintrayRepo("wolfendale", "maven")
+      Resolver.bintrayRepo("wolfendale", "maven"),
+      Resolver.mavenLocal
     ),
     scalafmtOnCompile := true,
   )

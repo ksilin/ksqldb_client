@@ -70,16 +70,28 @@ object TestData extends RandomDataGenerator {
       endTime: Long
   )
 
-  case class Order(id: String, userId: String, prodId: String, location: String, timestamp: Long)
+  case class Order(id: String, userId: String, prodId: String, amount: Int, location: String, timestamp: Long)
 
   implicit val genOrder: Arbitrary[Order] = Arbitrary {
     for {
       id   <- Gen.uuid
       userId   <- Gen.oneOf(userIds)
       prodId   <- Gen.oneOf(prodIds)
+      amount <- Gen.chooseNum(1, 10)
       location <- Arbitrary.arbitrary[address.Country]
-    } yield Order(id.toString, userId, prodId, location.name, System.currentTimeMillis())
+    } yield Order(id.toString, userId, prodId, amount, location.name, System.currentTimeMillis())
+  }
 
+  case class Shipment(id: String, orderId: String, warehouse: String, timestamp: Long)
+
+  val warehouses = List("NORTH", "SOUTH", "WEST", "EAST", "CENTER")
+
+  def makeGenShipment(orderIds: Iterable[String]): Arbitrary[Shipment] = Arbitrary {
+    for {
+      id   <- Gen.uuid
+    orderId <- Gen.oneOf(orderIds)
+    warehouse <- Gen.oneOf(warehouses)
+    } yield Shipment(id.toString, orderId, warehouse, System.currentTimeMillis())
   }
 
   case class Click(userId: String, element: String, userAgent: String, timestamp: Long)
