@@ -14,6 +14,7 @@ import monix.execution.Ack
 import monix.execution.Ack.Continue
 import monix.reactive._
 import monix.execution.Scheduler.{global => scheduler}
+import org.apache.kafka.common.serialization.Serdes.UUID
 import org.scalacheck.Arbitrary
 import wvlet.log.LogSupport
 
@@ -120,13 +121,13 @@ class KsqlDbJoinSpec extends AnyFreeSpec with Matchers with BeforeAndAfterAll wi
     TestHelper.createTopic(orderTopicName, adminClient, 1, 1)
     TestHelper.createTopic(shipmentTopicName, adminClient, 1, 1)
 
-    val orderProducer = JsonStringProducer[String, Order](adminBootstrapServers, orderTopicName)
-    val orderRecords  = orderProducer.makeRecords((ordersWithNewTimestamps map (d => d.id -> d)).toMap)
-    orderProducer.run(orderRecords)
+    // val orderProducer = JsonStringProducer[String, Order](adminBootstrapServers, orderTopicName)
+    // val orderRecords  = orderProducer.makeRecords((ordersWithNewTimestamps map (d => d.id -> d)).toMap)
+    // orderProducer.run(orderRecords)
 
-    val shipmentProducer = JsonStringProducer[String, Shipment](adminBootstrapServers, shipmentTopicName)
-    val shipmentRecords  = shipmentProducer.makeRecords((shipmentsWithNewTimestamps map (d => d.id -> d)).toMap)
-    shipmentProducer.run(shipmentRecords)
+    // val shipmentProducer = JsonStringProducer[String, Shipment](adminBootstrapServers, shipmentTopicName)
+    // val shipmentRecords  = shipmentProducer.makeRecords((shipmentsWithNewTimestamps map (d => d.id -> d)).toMap)
+    // shipmentProducer.run(shipmentRecords)
 
     val createOrderStreamSql =
       s"CREATE STREAM $orderStreamName (id VARCHAR KEY, userId VARCHAR, prodId VARCHAR, amount INT, location VARCHAR, timestamp BIGINT ) WITH (kafka_topic='$orderTopicName', value_format='json', timestamp = 'timestamp');"
@@ -168,8 +169,6 @@ class KsqlDbJoinSpec extends AnyFreeSpec with Matchers with BeforeAndAfterAll wi
 
     client.executeStatement(createUsersTableSql).get
 
-
-
     // only LEFT and INNER are supported
     // table updates do not produce new output, only updates on the stream side do
 
@@ -179,7 +178,7 @@ class KsqlDbJoinSpec extends AnyFreeSpec with Matchers with BeforeAndAfterAll wi
          | SELECT
          | c.userId as userId,
          | CASE
-         | WHEN u.name IS NULL THEN 'USER ' + userId + ' NOT_FOUND'
+         | WHEN u.name IS NULL THEN 'USER NAME FOR ' + userId + ' NOT_FOUND'
          | ELSE u.name
          | END as userName,
          | c.element,
@@ -324,7 +323,13 @@ class KsqlDbJoinSpec extends AnyFreeSpec with Matchers with BeforeAndAfterAll wi
     val joinedStreamQuery: StreamedQueryResult = client.streamQuery(query).get
     info(joinedStreamCreated)
 
-    // all orders have no shipments
+    val detectMissingShipments: Row => Unit = (row: Row) => {
+      val shipmentId: String = row.getString("SHIPMENTID")
+      if(null == shipmentId) {
+        warn(s"shipment is missing for: $row")
+      }
+    }
+      // all orders have no shipments
     joinedStreamQuery.subscribe(TestHelper.makeRowObserver(prefix = "orderShipmentJoin").toReactive(scheduler))
     Thread.sleep(1000)
   }
@@ -362,5 +367,74 @@ class KsqlDbJoinSpec extends AnyFreeSpec with Matchers with BeforeAndAfterAll wi
     joinedStreamQuery.subscribe(TestHelper.makeRowObserver(prefix = "orderShipmentJoin").toReactive(scheduler))
     Thread.sleep(1000)
   }
+
+
+  "windowed join - interactive" in {
+
+    prepareOrdersAndShipments()
+
+    val sufficientWindow = "5 MINUTES"
+
+    val orderShipmentJoinStreamSql = s"""CREATE STREAM ${orderShipmentJoinedStreamName} AS SELECT
+                                        | o.userId AS USERID,
+                                        | o.id AS ORDERID,
+                                        | o.amount,
+                                        | o.location,
+                                        | o.timestamp as ORDER_TS,
+                                        | s.timestamp as SHIPMENT_TS,
+                                        | (s.timestamp - o.timestamp) as DELAY,
+                                        | s.id AS SHIPMENTID,
+                                        | s.warehouse
+                                        | FROM $orderStreamName o
+                                        | LEFT JOIN $shipmentStreamName s
+                                        | WITHIN $sufficientWindow
+                                        | ON s.orderId = o.id
+                                        | EMIT CHANGES;""".stripMargin
+
+
+    val joinedStreamCreated: ExecuteStatementResult =
+      client.executeStatement(orderShipmentJoinStreamSql).get
+
+    val query = s"SELECT * FROM $orderShipmentJoinedStreamName EMIT CHANGES;"
+    val joinedStreamQuery: StreamedQueryResult = client.streamQuery(query).get
+    info(joinedStreamCreated)
+
+    joinedStreamQuery.subscribe(TestHelper.makeRowObserver(prefix = "orderShipmentJoin").toReactive(scheduler))
+
+    val orderProducer = JsonStringProducer[String, Order](adminBootstrapServers, orderTopicName)
+
+    val shipmentProducer = JsonStringProducer[String, Shipment](adminBootstrapServers, shipmentTopicName)
+
+    import io.circe._
+    import io.circe.syntax._
+
+    val now: Long = System.currentTimeMillis()
+
+    val order1 = ordersWithNewTimestamps.head.copy(timestamp = now)
+    val order2 = order1.copy(id = "noShipment", timestamp = now)
+    val shipment1  = shipmentsWithNewTimestamps.find(shipment => shipment.orderId == order1.id).get.copy(id = "s1", timestamp = now)// - Duration.ofMinutes(5).toMillis)
+    val shipment2  = shipment1.copy(id = "s2",  timestamp = now + Duration.ofMinutes(5).toMillis)
+    val shipment3  = shipment1.copy(id = "s3",  timestamp = now - Duration.ofMinutes(5).toMillis)
+    val shipment4  = shipment1.copy(id = "s4",  timestamp = now + Duration.ofMinutes(5).toMillis)
+
+    orderProducer.run(orderProducer.makeRecords(List(order1.id -> order1)))
+
+    shipmentProducer.run(shipmentProducer.makeRecords(List(shipment1.id -> shipment1)))
+
+    Thread.sleep(1000)
+
+    orderProducer.run(orderProducer.makeRecords(List(order2.id -> order2)))
+
+    shipmentProducer.run(shipmentProducer.makeRecords(List(shipment2.id -> shipment2)))
+    shipmentProducer.run(shipmentProducer.makeRecords(List(shipment3.id -> shipment3)))
+    shipmentProducer.run(shipmentProducer.makeRecords(List(shipment4.id -> shipment4)))
+
+    // one window per key per event
+
+    // 1607595536230 - 1607595296230 = 4 minutes
+
+    Thread.sleep(10000)
+  }
+
 
 }
