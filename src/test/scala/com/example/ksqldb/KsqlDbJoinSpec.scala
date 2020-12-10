@@ -275,9 +275,7 @@ class KsqlDbJoinSpec extends AnyFreeSpec with Matchers with BeforeAndAfterAll wi
     val alertOnNullName: Row => Unit = (row: Row) => {
       val userName: String = row.getValue("USERNAME").asInstanceOf[String]
       if(null == userName) {
-        info("---")
         info(s"found NULL userName: $row")
-        info("---")
       }
     }
 
@@ -297,9 +295,11 @@ class KsqlDbJoinSpec extends AnyFreeSpec with Matchers with BeforeAndAfterAll wi
 
   }
 
-  "windowed join" in {
+  "windowed join - too short" in {
 
     prepareOrdersAndShipments()
+
+    val tooShortWindow = "3 MINUTES"
 
     val orderShipmentJoinStreamSql = s"""CREATE STREAM ${orderShipmentJoinedStreamName} AS SELECT
                                            | o.userId AS USERID,
@@ -312,10 +312,44 @@ class KsqlDbJoinSpec extends AnyFreeSpec with Matchers with BeforeAndAfterAll wi
                                            | s.id AS SHIPMENTID,
                                            | s.warehouse
                                            | FROM $orderStreamName o
-                                           | LEFT JOIN $shipmentStreamName s
-                                           | WITHIN 3 MINUTES
+                                           | INNER JOIN $shipmentStreamName s
+                                           | WITHIN $tooShortWindow
                                            | ON s.orderId = o.id
                                            | EMIT CHANGES;""".stripMargin
+
+    val joinedStreamCreated: ExecuteStatementResult =
+      client.executeStatement(orderShipmentJoinStreamSql).get
+
+    val query = s"SELECT * FROM $orderShipmentJoinedStreamName EMIT CHANGES;"
+    val joinedStreamQuery: StreamedQueryResult = client.streamQuery(query).get
+    info(joinedStreamCreated)
+
+    // all orders have no shipments
+    joinedStreamQuery.subscribe(TestHelper.makeRowObserver(prefix = "orderShipmentJoin").toReactive(scheduler))
+    Thread.sleep(1000)
+  }
+
+  "windowed join - sufficient" in {
+
+    prepareOrdersAndShipments()
+
+    val sufficientWindow = "5 MINUTES"
+
+    val orderShipmentJoinStreamSql = s"""CREATE STREAM ${orderShipmentJoinedStreamName} AS SELECT
+                                                   | o.userId AS USERID,
+                                                   | o.id AS ORDERID,
+                                                   | o.amount,
+                                                   | o.location,
+                                                   | o.timestamp as ORDER_TS,
+                                                   | s.timestamp as SHIPMENT_TS,
+                                                   | (s.timestamp - o.timestamp) as DELAY,
+                                                   | s.id AS SHIPMENTID,
+                                                   | s.warehouse
+                                                   | FROM $orderStreamName o
+                                                   | LEFT JOIN $shipmentStreamName s
+                                                   | WITHIN $sufficientWindow
+                                                   | ON s.orderId = o.id
+                                                   | EMIT CHANGES;""".stripMargin
 
 
     val joinedStreamCreated: ExecuteStatementResult =
@@ -326,7 +360,6 @@ class KsqlDbJoinSpec extends AnyFreeSpec with Matchers with BeforeAndAfterAll wi
     info(joinedStreamCreated)
 
     joinedStreamQuery.subscribe(TestHelper.makeRowObserver(prefix = "orderShipmentJoin").toReactive(scheduler))
-
     Thread.sleep(1000)
   }
 
