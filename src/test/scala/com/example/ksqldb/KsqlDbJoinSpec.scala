@@ -1,26 +1,40 @@
 package com.example.ksqldb
 
-import java.io.PrintStream
-import java.time.{Duration, Instant}
+import java.time.Duration
 import java.util.Properties
 import com.example.ksqldb.TestData._
 import io.circe.generic.auto._
-import io.confluent.ksql.api.client.{Client, ClientOptions, ExecuteStatementResult, Row, StreamedQueryResult}
-import org.apache.kafka.clients.admin.{AdminClient, AdminClientConfig}
+import io.confluent.ksql.api.client.{
+  Client,
+  ClientOptions,
+  ExecuteStatementResult,
+  Row,
+  StreamedQueryResult
+}
+import org.apache.kafka.clients.admin.{ AdminClient, AdminClientConfig }
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.freespec.AnyFreeSpec
 import org.scalatest.matchers.must.Matchers
-import monix.execution.Ack
-import monix.execution.Ack.Continue
-import monix.reactive._
-import monix.execution.Scheduler.{global => scheduler}
-import org.apache.kafka.common.serialization.Serdes.UUID
+import monix.execution.Scheduler.{ global => scheduler }
 import org.scalacheck.Arbitrary
-import wvlet.log.LogSupport
+import wvlet.log.{ LogLevel, LogSupport, Logger }
 
 import scala.jdk.CollectionConverters._
+import scala.util.Random
 
-class KsqlDbJoinSpec extends AnyFreeSpec with Matchers with BeforeAndAfterAll with FutureConverter with LogSupport {
+class KsqlDbJoinSpec
+    extends AnyFreeSpec
+    with Matchers
+    with BeforeAndAfterAll
+    with FutureConverter
+    with LogSupport {
+
+  EnvVarUtil.setEnv("RANDOM_DATA_GENERATOR_SEED", "9153932137467828920")
+
+  Logger.setDefaultLogLevel(LogLevel.INFO)
+  val loglevelProps = new Properties()
+  loglevelProps.setProperty("org.apache.kafka", LogLevel.WARN.name)
+  Logger.setLogLevels(loglevelProps)
 
   val KSQLDB_SERVER_HOST      = "localhost"
   val KSQLDB_SERVER_HOST_PORT = 8088
@@ -36,80 +50,91 @@ class KsqlDbJoinSpec extends AnyFreeSpec with Matchers with BeforeAndAfterAll wi
   adminClientProps.put(AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG, adminBootstrapServers)
   val adminClient: AdminClient = AdminClient.create(adminClientProps)
 
-  val users: Seq[User]      = random[User](50).distinctBy(_.id).take(5)
-  val userIds: Seq[String]  = users.map(_.id)
-  val clicks: Seq[Click]    = random[Click](100)
-  val clicksFromKnownUsers: Seq[Click]    = clicks.filter(c => userIds.contains(c.userId))
-  val userTopicName         = "users"
-  val clickTopicName        = "clicks"
-  val userStreamName        = "userStream"
-  val userTableName         = "userTable"
-  val clickStreamName       = "clickStream"
-  val leftJoinedStreamName  = "joinedStreamLeft"
-  val innerJoinedStreamName = "joinedStreamInner"
-  val userClickstreamStreamToStreamJoinName = "userClickstreamStreamToStreamJoin"
+  val users: Seq[User]     = random[User](50).distinctBy(_.id).take(5)
+  val userIds: Seq[String] = users.map(_.id)
+  val clicks: Seq[Click]   = random[Click](100)
+  val (clicksFromKnownUsers: Seq[Click], clicksFromUnknownUsers: Seq[Click]) =
+    clicks.partition(c => userIds.contains(c.userId))
+  val userTopicName                         = "users"
+  val clickTopicName                        = "clicks"
+  val userStreamName                        = "userStream"
+  val userTableName                         = "userTable"
+  val clickStreamName                       = "clickStream"
+  val leftJoinedStreamName                  = "joinedStreamLeft"
+  val innerJoinedStreamName                 = "joinedStreamInner"
+  val userClicksStreamToStreamJoinName = "userClickstreamStreamToStreamJoin"
 
-  val now: Long = System.currentTimeMillis()
-  val step = 10000
+  val now: Long                  = System.currentTimeMillis()
+  val step                       = 10000
   val orderTimestamps: Seq[Long] = (0 to 50).map(now - step * _).reverse
-  val orders: Seq[Order] = random[Order](50).filter(o => userIds.contains(o.userId))
+
+  val orders: Seq[Order]         = random[Order](50).filter(o => userIds.contains(o.userId))
   info(s"created ${orders.size} orders")
+  val ordersWithNewTimestamps: Seq[Order] =
+    orders.zip(orderTimestamps).map { case (o, ts) => o.copy(timestamp = ts) }
 
-  val ordersWithNewTimestamps: Seq[Order] = orders.zip(orderTimestamps).map{ case(o, ts) => o.copy(timestamp = ts) }
-
-  val orderIds: Seq[String] = orders.map(_.id)
+  val orderIds: Seq[String]                     = orders.map(_.id)
   implicit val shipmentGen: Arbitrary[Shipment] = makeGenShipment(orderIds)
-  val shipments: Map[String, Shipment] = random[Shipment](100).map(o => (o.orderId, o)).toMap // .distinctBy(_.orderId)
+  val shipments: Map[String, Shipment] =
+    random[Shipment](100).map(o => (o.orderId, o)).toMap // .distinctBy(_.orderId)
 
   // using collect as partial fn from orderId to shipment -> ordered shipments
   val orderedShipments: Seq[Shipment] = orderIds.collect(shipments)
 
   // shipments have a delay after orders
-  val shipmentsWithNewTimestamps = orderedShipments.zip(orderTimestamps.takeRight(orderedShipments.size)).map{case (s, ts) => s.copy(timestamp = ts)}
+  val shipmentsWithNewTimestamps: Seq[Shipment] =
+    orderedShipments.zip(orderTimestamps.takeRight(orderedShipments.size)).map { case (s, ts) =>
+      s.copy(timestamp = ts)
+    }
 
-  info("timestamps:")
-  info(Instant.ofEpochMilli(ordersWithNewTimestamps.head.timestamp))
-  info(Instant.ofEpochMilli(shipmentsWithNewTimestamps.head.timestamp))
-
-  val orderTopicName = "orders"
+  val orderTopicName    = "orders"
   val shipmentTopicName = "shipments"
 
-  val orderStreamName = "orderStream"
-  val shipmentStreamName = "shipmentStream"
+  val orderStreamName               = "orderStream"
+  val shipmentStreamName            = "shipmentStream"
   val orderShipmentJoinedStreamName = "orderShipmentStream"
 
-
-  def prepareClicksAndUsers() = {
+  def prepareClicksAndUsers(produceTestData: Boolean = true): Unit = {
     TestHelper.deleteTable(userTableName, client)
     TestHelper.deleteStream(clickStreamName, client, adminClient)
     TestHelper.deleteStream(leftJoinedStreamName, client, adminClient)
     TestHelper.deleteStream(innerJoinedStreamName, client, adminClient)
     TestHelper.deleteStream(userStreamName, client, adminClient)
-    TestHelper.deleteStream(userClickstreamStreamToStreamJoinName, client, adminClient)
+    TestHelper.deleteStream(userClicksStreamToStreamJoinName, client, adminClient)
 
     TestHelper.deleteTopic(clickTopicName, adminClient)
     TestHelper.deleteTopic(userTopicName, adminClient)
 
-    TestHelper.createTopic(clickTopicName, adminClient, 1, 1)
-    TestHelper.createTopic(userTopicName, adminClient, 1, 1)
+    TestHelper.createTopic(clickTopicName, adminClient)
+    TestHelper.createTopic(userTopicName, adminClient)
 
-    val userProducer = JsonStringProducer[String, User](adminBootstrapServers, userTopicName)
-    val userRecords  = userProducer.makeRecords((users map (d => d.id -> d)).toMap)
-    userProducer.run(userRecords)
+    if (produceTestData) {
+      val userProducer = JsonStringProducer[String, User](
+        adminBootstrapServers,
+        userTopicName,
+        "userProducer" + Random.alphanumeric.take(10).mkString
+      )
+      val userRecords = userProducer.makeRecords((users map (d => d.id -> d)).toMap)
+      userProducer.run(userRecords)
 
-    val clickProducer = JsonStringProducer[String, Click](adminBootstrapServers, clickTopicName)
-    val clickRecords  = clickProducer.makeRecords((clicksFromKnownUsers map (d => d.userId -> d)))
-
-    clickProducer.run(clickRecords)
+      val clickProducer = JsonStringProducer[String, Click](
+        adminBootstrapServers,
+        clickTopicName,
+        "clickProducer" + Random.alphanumeric.take(10).mkString
+      )
+      val clickRecords = clickProducer.makeRecords((clicksFromKnownUsers map (d => d.userId -> d)))
+      clickProducer.run(clickRecords)
+    }
 
     val createClickStreamSql =
       s"CREATE STREAM $clickStreamName (userId VARCHAR KEY, element VARCHAR, userAgent VARCHAR, timestamp BIGINT ) WITH (kafka_topic='$clickTopicName', value_format='json', timestamp = 'timestamp');"
 
-    val clickStreamCreated: ExecuteStatementResult = client.executeStatement(createClickStreamSql).get()
+    val clickStreamCreated: ExecuteStatementResult =
+      client.executeStatement(createClickStreamSql).get()
     info(clickStreamCreated)
   }
 
-  def prepareOrdersAndShipments() = {
+  def prepareOrdersAndShipments(produceTestData: Boolean = true): Unit = {
 
     TestHelper.deleteStream(orderStreamName, client, adminClient)
     TestHelper.deleteStream(shipmentStreamName, client, adminClient)
@@ -118,30 +143,36 @@ class KsqlDbJoinSpec extends AnyFreeSpec with Matchers with BeforeAndAfterAll wi
     TestHelper.deleteTopic(orderTopicName, adminClient)
     TestHelper.deleteTopic(shipmentTopicName, adminClient)
 
-    TestHelper.createTopic(orderTopicName, adminClient, 1, 1)
-    TestHelper.createTopic(shipmentTopicName, adminClient, 1, 1)
+    TestHelper.createTopic(orderTopicName, adminClient)
+    TestHelper.createTopic(shipmentTopicName, adminClient)
 
-    // val orderProducer = JsonStringProducer[String, Order](adminBootstrapServers, orderTopicName)
-    // val orderRecords  = orderProducer.makeRecords((ordersWithNewTimestamps map (d => d.id -> d)).toMap)
-    // orderProducer.run(orderRecords)
+    if (produceTestData) {
+      val orderProducer = JsonStringProducer[String, Order](adminBootstrapServers, orderTopicName)
+      val orderRecords =
+        orderProducer.makeRecords((ordersWithNewTimestamps map (d => d.id -> d)).toMap)
+      orderProducer.run(orderRecords)
 
-    // val shipmentProducer = JsonStringProducer[String, Shipment](adminBootstrapServers, shipmentTopicName)
-    // val shipmentRecords  = shipmentProducer.makeRecords((shipmentsWithNewTimestamps map (d => d.id -> d)).toMap)
-    // shipmentProducer.run(shipmentRecords)
+      val shipmentProducer =
+        JsonStringProducer[String, Shipment](adminBootstrapServers, shipmentTopicName)
+      val shipmentRecords =
+        shipmentProducer.makeRecords((shipmentsWithNewTimestamps map (d => d.id -> d)).toMap)
+      shipmentProducer.run(shipmentRecords)
+    }
 
     val createOrderStreamSql =
       s"CREATE STREAM $orderStreamName (id VARCHAR KEY, userId VARCHAR, prodId VARCHAR, amount INT, location VARCHAR, timestamp BIGINT ) WITH (kafka_topic='$orderTopicName', value_format='json', timestamp = 'timestamp');"
 
-    val orderStreamCreated: ExecuteStatementResult = client.executeStatement(createOrderStreamSql).get()
+    val orderStreamCreated: ExecuteStatementResult =
+      client.executeStatement(createOrderStreamSql).get()
     info(orderStreamCreated)
 
     val createShipmentStreamSql =
       s"CREATE STREAM $shipmentStreamName (id VARCHAR KEY, orderId VARCHAR, warehouse VARCHAR, timestamp BIGINT ) WITH (kafka_topic='$shipmentTopicName', value_format='json', timestamp = 'timestamp');"
 
-    val shipmentStreamCreated: ExecuteStatementResult = client.executeStatement(createShipmentStreamSql).get()
+    val shipmentStreamCreated: ExecuteStatementResult =
+      client.executeStatement(createShipmentStreamSql).get()
     info(shipmentStreamCreated)
   }
-
 
   override def afterAll(): Unit = {
     client.close()
@@ -169,7 +200,7 @@ class KsqlDbJoinSpec extends AnyFreeSpec with Matchers with BeforeAndAfterAll wi
 
     client.executeStatement(createUsersTableSql).get
 
-    // only LEFT and INNER are supported
+    // only LEFT and INNER are supported for stream-table
     // table updates do not produce new output, only updates on the stream side do
 
     // can contain NULL values for user name
@@ -189,8 +220,6 @@ class KsqlDbJoinSpec extends AnyFreeSpec with Matchers with BeforeAndAfterAll wi
 
     val leftJoinedStreamCreated: ExecuteStatementResult =
       client.executeStatement(leftJoinedStreamSql).get
-    info("leftJoinedStreamCreated")
-    info(leftJoinedStreamCreated)
 
     val leftJoinedQuerySql                = s"SELECT * FROM $leftJoinedStreamName EMIT CHANGES;"
     val queryCreated: StreamedQueryResult = client.streamQuery(leftJoinedQuerySql).get
@@ -224,6 +253,116 @@ class KsqlDbJoinSpec extends AnyFreeSpec with Matchers with BeforeAndAfterAll wi
     Thread.sleep(1000)
   }
 
+  "stream to table join - interactive" in {
+
+    prepareClicksAndUsers(produceTestData = false)
+
+    val createUsersTableSql =
+      s"""CREATE TABLE $userTableName (
+         | id VARCHAR PRIMARY KEY,
+         | name VARCHAR,
+         | address STRUCT <
+         | street VARCHAR,
+         | building VARCHAR,
+         | index VARCHAR
+         | >,
+         | changedAt BIGINT
+         | ) WITH (
+         | KAFKA_TOPIC = '$userTopicName',
+         | VALUE_FORMAT = 'JSON',
+         | timestamp = 'changedAt'
+         | );""".stripMargin
+
+    client.executeStatement(createUsersTableSql).get
+
+    val joinedStreamSql =
+      s"""CREATE STREAM ${leftJoinedStreamName} AS
+         | SELECT
+         | c.userId as userId,
+         | CASE
+         | WHEN u.name IS NULL THEN 'USER NAME FOR ' + userId + ' NOT_FOUND'
+         | ELSE u.name
+         | END as userName,
+         | c.element,
+         | c.timestamp as ts,
+         | u.changedAt as userTimestamp
+         | FROM $clickStreamName c
+         | LEFT JOIN $userTableName u ON c.userId = u.id
+         | EMIT CHANGES;""".stripMargin
+
+    client.executeStatement(joinedStreamSql).get
+
+    val joinedQuerySql                    = s"SELECT * FROM $leftJoinedStreamName EMIT CHANGES;"
+    val queryCreated: StreamedQueryResult = client.streamQuery(joinedQuerySql).get
+    queryCreated.subscribe(TestHelper.makeRowObserver("leftJoin").toReactive(scheduler))
+
+    // produce test data
+    val userProducer = JsonStringProducer[String, User](
+      adminBootstrapServers,
+      userTopicName,
+      "userProducer" + Random.alphanumeric.take(10).mkString
+    )
+    val clickProducer = JsonStringProducer[String, Click](
+      adminBootstrapServers,
+      clickTopicName,
+      "clickProducer" + Random.alphanumeric.take(10).mkString
+    )
+
+    val now = System.currentTimeMillis()
+
+    val firstClick =
+      clicksFromKnownUsers.head.copy(userId = "1", timestamp = now - Duration.ofMinutes(1).toMillis)
+    val secondClick =
+      firstClick.copy(userId = "1", element = "newElement", timestamp = now)
+    val thirdClick =
+      firstClick.copy(userId = "2", timestamp = now - Duration.ofMinutes(1).toMillis)
+    val firstClickRecord  = clickProducer.makeRecords(Map(firstClick.userId -> firstClick))
+    val secondClickRecord = clickProducer.makeRecords(Map(secondClick.userId -> secondClick))
+    val thirdClickRecord  = clickProducer.makeRecords(Map(thirdClick.userId -> thirdClick))
+
+    val userForFirstClick = users.head.copy(
+      id = "1",
+      name = "Marcelo",
+      changedAt = now
+    ) // - Duration.ofMinutes(2).toMillis )
+    val userForSecondClick = users.head.copy(
+      id = "1",
+      name = "Adam",
+      changedAt = now
+    ) // - Duration.ofMinutes(2).toMillis )
+    val userForThirdClick = users.head.copy(
+      id = "2",
+      name = "Konstantin",
+      changedAt = now
+    ) // - Duration.ofMinutes(2).toMillis )
+
+    val userRecordForFirstClick =
+      userProducer.makeRecords(Map(userForFirstClick.id -> userForFirstClick))
+    val userRecordForSecondClick =
+      userProducer.makeRecords(Map(userForSecondClick.id -> userForSecondClick))
+    val userRecordForThirdClick =
+      userProducer.makeRecords(Map(userForThirdClick.id -> userForThirdClick))
+
+    info("produce first click")
+    clickProducer.run(firstClickRecord)
+    clickProducer.run(thirdClickRecord)
+
+    info("produce user for first click")
+    userProducer.run(userRecordForFirstClick)
+
+    Thread.sleep(1500)
+    info("produce user for third click")
+    userProducer.run(userRecordForThirdClick)
+
+    info("produce user for second click")
+    userProducer.run(userRecordForSecondClick)
+
+    info("produce second click")
+    clickProducer.run(secondClickRecord)
+
+    Thread.sleep(3000)
+  }
+
   "stream to stream join" in {
 
     prepareClicksAndUsers()
@@ -249,7 +388,7 @@ class KsqlDbJoinSpec extends AnyFreeSpec with Matchers with BeforeAndAfterAll wi
 
     // stream-stream joins require a WITHIN clause
     val userClickstreamJoinedStreamSql =
-      s"""CREATE STREAM ${userClickstreamStreamToStreamJoinName} AS
+      s"""CREATE STREAM ${userClicksStreamToStreamJoinName} AS
          | SELECT
          | c.userId as USERID,
          | u.name as USERNAME,
@@ -267,32 +406,29 @@ class KsqlDbJoinSpec extends AnyFreeSpec with Matchers with BeforeAndAfterAll wi
     info("userClickstreamJoinedStreamSqlCreated")
     info(userClickstreamJoinedStreamSqlCreated)
 
-    val joinedStreamQuerySql                    = s"SELECT * FROM $userClickstreamStreamToStreamJoinName EMIT CHANGES;"
+    val joinedStreamQuerySql                   = s"SELECT * FROM $userClicksStreamToStreamJoinName EMIT CHANGES;"
     val queryCreatedInner: StreamedQueryResult = client.streamQuery(joinedStreamQuerySql).get
 
     // there are no unknown users
     val alertOnNullName: Row => Unit = (row: Row) => {
       val userName: String = row.getValue("USERNAME").asInstanceOf[String]
-      if(null == userName) {
+      if (null == userName) {
         info(s"found NULL userName: $row")
       }
     }
 
-    queryCreatedInner.subscribe(TestHelper.makeRowObserver(prefix = "streamStreamJoin", nextPlugin = Some(alertOnNullName)).toReactive(scheduler))
+    queryCreatedInner.subscribe(
+      TestHelper
+        .makeRowObserver(prefix = "streamStreamJoin", nextPlugin = Some(alertOnNullName))
+        .toReactive(scheduler)
+    )
 
     Thread.sleep(1000)
   }
 
+  "join streams with repeating keys" in {}
 
-  "join streams with repeating keys" in {
-
-
-  }
-
-  "join streams with different partition counts" in {
-
-
-  }
+  "join streams with different partition counts" in {}
 
   "windowed join - too short" in {
 
@@ -319,18 +455,20 @@ class KsqlDbJoinSpec extends AnyFreeSpec with Matchers with BeforeAndAfterAll wi
     val joinedStreamCreated: ExecuteStatementResult =
       client.executeStatement(orderShipmentJoinStreamSql).get
 
-    val query = s"SELECT * FROM $orderShipmentJoinedStreamName EMIT CHANGES;"
+    val query                                  = s"SELECT * FROM $orderShipmentJoinedStreamName EMIT CHANGES;"
     val joinedStreamQuery: StreamedQueryResult = client.streamQuery(query).get
     info(joinedStreamCreated)
 
     val detectMissingShipments: Row => Unit = (row: Row) => {
       val shipmentId: String = row.getString("SHIPMENTID")
-      if(null == shipmentId) {
+      if (null == shipmentId) {
         warn(s"shipment is missing for: $row")
       }
     }
-      // all orders have no shipments
-    joinedStreamQuery.subscribe(TestHelper.makeRowObserver(prefix = "orderShipmentJoin").toReactive(scheduler))
+    // all orders have no shipments
+    joinedStreamQuery.subscribe(
+      TestHelper.makeRowObserver(prefix = "orderShipmentJoin").toReactive(scheduler)
+    )
     Thread.sleep(1000)
   }
 
@@ -356,22 +494,22 @@ class KsqlDbJoinSpec extends AnyFreeSpec with Matchers with BeforeAndAfterAll wi
                                                    | ON s.orderId = o.id
                                                    | EMIT CHANGES;""".stripMargin
 
-
     val joinedStreamCreated: ExecuteStatementResult =
       client.executeStatement(orderShipmentJoinStreamSql).get
 
-    val query = s"SELECT * FROM $orderShipmentJoinedStreamName EMIT CHANGES;"
+    val query                                  = s"SELECT * FROM $orderShipmentJoinedStreamName EMIT CHANGES;"
     val joinedStreamQuery: StreamedQueryResult = client.streamQuery(query).get
     info(joinedStreamCreated)
 
-    joinedStreamQuery.subscribe(TestHelper.makeRowObserver(prefix = "orderShipmentJoin").toReactive(scheduler))
+    joinedStreamQuery.subscribe(
+      TestHelper.makeRowObserver(prefix = "orderShipmentJoin").toReactive(scheduler)
+    )
     Thread.sleep(1000)
   }
 
-
   "windowed join - interactive" in {
 
-    prepareOrdersAndShipments()
+    prepareOrdersAndShipments(false)
 
     val sufficientWindow = "5 MINUTES"
 
@@ -391,38 +529,42 @@ class KsqlDbJoinSpec extends AnyFreeSpec with Matchers with BeforeAndAfterAll wi
                                         | ON s.orderId = o.id
                                         | EMIT CHANGES;""".stripMargin
 
+    // TODO - join on windowed streams (join ON window)
 
     val joinedStreamCreated: ExecuteStatementResult =
       client.executeStatement(orderShipmentJoinStreamSql).get
 
-    val query = s"SELECT * FROM $orderShipmentJoinedStreamName EMIT CHANGES;"
+    val query                                  = s"SELECT * FROM $orderShipmentJoinedStreamName EMIT CHANGES;"
     val joinedStreamQuery: StreamedQueryResult = client.streamQuery(query).get
     info(joinedStreamCreated)
 
-    joinedStreamQuery.subscribe(TestHelper.makeRowObserver(prefix = "orderShipmentJoin").toReactive(scheduler))
+    joinedStreamQuery.subscribe(
+      TestHelper.makeRowObserver(prefix = "orderShipmentJoin").toReactive(scheduler)
+    )
 
     val orderProducer = JsonStringProducer[String, Order](adminBootstrapServers, orderTopicName)
 
-    val shipmentProducer = JsonStringProducer[String, Shipment](adminBootstrapServers, shipmentTopicName)
-
-    import io.circe._
-    import io.circe.syntax._
+    val shipmentProducer =
+      JsonStringProducer[String, Shipment](adminBootstrapServers, shipmentTopicName)
 
     val now: Long = System.currentTimeMillis()
 
     val order1 = ordersWithNewTimestamps.head.copy(timestamp = now)
     val order2 = order1.copy(id = "noShipment", timestamp = now)
-    val shipment1  = shipmentsWithNewTimestamps.find(shipment => shipment.orderId == order1.id).get.copy(id = "s1", timestamp = now)// - Duration.ofMinutes(5).toMillis)
-    val shipment2  = shipment1.copy(id = "s2",  timestamp = now + Duration.ofMinutes(5).toMillis)
-    val shipment3  = shipment1.copy(id = "s3",  timestamp = now - Duration.ofMinutes(5).toMillis)
-    val shipment4  = shipment1.copy(id = "s4",  timestamp = now + Duration.ofMinutes(5).toMillis)
+    val shipment1 = shipmentsWithNewTimestamps
+      .find(shipment => shipment.orderId == order1.id)
+      .get
+      .copy(id = "s1", timestamp = now) // - Duration.ofMinutes(5).toMillis)
+    val shipment2 = shipment1.copy(id = "s2", timestamp = now + Duration.ofMinutes(5).toMillis)
+    val shipment3 = shipment1.copy(id = "s3", timestamp = now - Duration.ofMinutes(5).toMillis)
+    val shipment4 = shipment1.copy(id = "s4", timestamp = now + Duration.ofMinutes(5).toMillis)
 
     orderProducer.run(orderProducer.makeRecords(List(order1.id -> order1)))
 
     shipmentProducer.run(shipmentProducer.makeRecords(List(shipment1.id -> shipment1)))
 
     Thread.sleep(1000)
-
+    // order join event happens before 1st order joins 1st shipment
     orderProducer.run(orderProducer.makeRecords(List(order2.id -> order2)))
 
     shipmentProducer.run(shipmentProducer.makeRecords(List(shipment2.id -> shipment2)))
@@ -430,11 +572,10 @@ class KsqlDbJoinSpec extends AnyFreeSpec with Matchers with BeforeAndAfterAll wi
     shipmentProducer.run(shipmentProducer.makeRecords(List(shipment4.id -> shipment4)))
 
     // one window per key per event
-
     // 1607595536230 - 1607595296230 = 4 minutes
 
     Thread.sleep(10000)
-  }
 
+  }
 
 }

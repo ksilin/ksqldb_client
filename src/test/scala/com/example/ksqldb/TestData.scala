@@ -30,14 +30,14 @@ object TestData extends RandomDataGenerator {
 
   val userIds: Seq[String] = (1 to 10).map(_.toString)
 
-  case class User(id: String, name: String, address: Address)
+  case class User(id: String, name: String, address: Address, changedAt: Long)
 
   implicit val genUser: Arbitrary[User] = Arbitrary {
     for {
       id      <- Gen.oneOf(userIds)
       name    <- Arbitrary.arbitrary[name.FullName]
       address <- genAddress.arbitrary
-    } yield User(id, name.value, address)
+    } yield User(id, name.value, address, System.currentTimeMillis())
   }
 
   val prodIds = List(
@@ -70,14 +70,21 @@ object TestData extends RandomDataGenerator {
       endTime: Long
   )
 
-  case class Order(id: String, userId: String, prodId: String, amount: Int, location: String, timestamp: Long)
+  case class Order(
+      id: String,
+      userId: String,
+      prodId: String,
+      amount: Int,
+      location: String,
+      timestamp: Long
+  )
 
   implicit val genOrder: Arbitrary[Order] = Arbitrary {
     for {
-      id   <- Gen.uuid
+      id       <- Gen.uuid
       userId   <- Gen.oneOf(userIds)
       prodId   <- Gen.oneOf(prodIds)
-      amount <- Gen.chooseNum(1, 10)
+      amount   <- Gen.chooseNum(1, 10)
       location <- Arbitrary.arbitrary[address.Country]
     } yield Order(id.toString, userId, prodId, amount, location.name, System.currentTimeMillis())
   }
@@ -88,9 +95,9 @@ object TestData extends RandomDataGenerator {
 
   def makeGenShipment(orderIds: Iterable[String]): Arbitrary[Shipment] = Arbitrary {
     for {
-      id   <- Gen.uuid
-    orderId <- Gen.oneOf(orderIds)
-    warehouse <- Gen.oneOf(warehouses)
+      id        <- Gen.uuid
+      orderId   <- Gen.oneOf(orderIds)
+      warehouse <- Gen.oneOf(warehouses)
     } yield Shipment(id.toString, orderId, warehouse, System.currentTimeMillis())
   }
 
@@ -98,11 +105,16 @@ object TestData extends RandomDataGenerator {
 
   implicit val genClick: Arbitrary[Click] = Arbitrary {
     for {
-    userId <- Gen.oneOf(userIds)
-    element <- Arbitrary.arbitrary[internet.Slug]
-    userAgent <- Arbitrary.arbitrary[internet.UserAgent]
-    timestampOffset <- Gen.chooseNum(0, 100000)
-    } yield Click(userId, element.value, userAgent.value, System.currentTimeMillis() + timestampOffset)
+      userId          <- Gen.oneOf(userIds)
+      element         <- Arbitrary.arbitrary[internet.Slug]
+      userAgent       <- Arbitrary.arbitrary[internet.UserAgent]
+      timestampOffset <- Gen.chooseNum(0, 100000)
+    } yield Click(
+      userId,
+      element.value,
+      userAgent.value,
+      System.currentTimeMillis() + timestampOffset
+    )
 
   }
 

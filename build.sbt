@@ -22,13 +22,14 @@ lazy val ksqldb_client =
         library.sttp,
         library.sttpBackendOkHttp,
         library.airframeLog,
+        library.logback,
         library.wireMock % Test,
         library.mockServer % Test,
         library.mockServerClient % Test,
         library.randomDataGen % Test,
         library.scalaFaker % Test,
         library.scalatest % Test,
-      ),
+      ),libraryDependencies ~= { _.map(_.exclude("org.slf4j", "slf4j-log4j12")) }
     )
 
 // *****************************************************************************
@@ -48,6 +49,7 @@ lazy val library =
       val circe = "0.13.0"
       val sttp = "3.0.0-RC9"
       val airframeLog = "20.12.1"
+      val logback = "1.2.3"
     }
 
     val clients = "org.apache.kafka" % "kafka-clients" % Version.kafka
@@ -64,6 +66,8 @@ lazy val library =
     val sttp                = "com.softwaremill.sttp.client3" %% "core"                      % Version.sttp
     val sttpBackendOkHttp   = "com.softwaremill.sttp.client3" %% "okhttp-backend"            % Version.sttp
     val airframeLog = "org.wvlet.airframe" %% "airframe-log" % Version.airframeLog
+    val logback = "ch.qos.logback" % "logback-core" % Version.logback
+    val sideEffectsProcessor = "blep" % "kafka-side-effects-processor" % "1.0-SNAPSHOT"
     val wireMock = "com.github.tomakehurst" % "wiremock" % "2.27.2"
     val mockServer = "org.mock-server" % "mockserver-netty" % "5.11.2"
     val mockServerClient = "org.mock-server" % "mockserver-client-java" % "5.11.2"
