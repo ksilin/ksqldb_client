@@ -55,20 +55,20 @@ class KsqlDbJoinSpec
   val clicks: Seq[Click]   = random[Click](100)
   val (clicksFromKnownUsers: Seq[Click], clicksFromUnknownUsers: Seq[Click]) =
     clicks.partition(c => userIds.contains(c.userId))
-  val userTopicName                         = "users"
-  val clickTopicName                        = "clicks"
-  val userStreamName                        = "userStream"
-  val userTableName                         = "userTable"
-  val clickStreamName                       = "clickStream"
-  val leftJoinedStreamName                  = "joinedStreamLeft"
-  val innerJoinedStreamName                 = "joinedStreamInner"
+  val userTopicName                    = "users"
+  val clickTopicName                   = "clicks"
+  val userStreamName                   = "userStream"
+  val userTableName                    = "userTable"
+  val clickStreamName                  = "clickStream"
+  val leftJoinedStreamName             = "joinedStreamLeft"
+  val innerJoinedStreamName            = "joinedStreamInner"
   val userClicksStreamToStreamJoinName = "userClickstreamStreamToStreamJoin"
 
   val now: Long                  = System.currentTimeMillis()
   val step                       = 10000
   val orderTimestamps: Seq[Long] = (0 to 50).map(now - step * _).reverse
 
-  val orders: Seq[Order]         = random[Order](50).filter(o => userIds.contains(o.userId))
+  val orders: Seq[Order] = random[Order](50).filter(o => userIds.contains(o.userId))
   info(s"created ${orders.size} orders")
   val ordersWithNewTimestamps: Seq[Order] =
     orders.zip(orderTimestamps).map { case (o, ts) => o.copy(timestamp = ts) }

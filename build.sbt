@@ -40,8 +40,8 @@ lazy val library =
   new {
 
     object Version {
-      val kafka = "2.6.0"
-      val ksqlDb = "0.13.0"
+      val kafka = "2.7.0"
+      val ksqlDb = "0.14.0"
       val scalatest = "3.2.0"
       val pureConfig = "0.14.0"
       val betterFiles = "3.9.1"
@@ -99,6 +99,7 @@ lazy val commonSettings =
       "ksqlDb" at "https://ksqldb-maven.s3.amazonaws.com/maven",
       "confluentJenkins" at "https://jenkins-confluent-packages-beta-maven.s3.amazonaws.com/6.1.0-beta200715032424/1/maven/",
       "confluentJenkins2" at "https://jenkins-confluent-packages-beta-maven.s3.amazonaws.com/6.1.0-beta200916191548/1/maven/",
+      "confluentJenkins3" at "https://jenkins-confluent-packages-beta-maven.s3.amazonaws.com/6.1.0-beta201006024150/1/maven/",
       Resolver.sonatypeRepo("releases"),
       Resolver.bintrayRepo("wolfendale", "maven"),
       Resolver.mavenLocal

@@ -7,8 +7,8 @@ import java.util.concurrent.ExecutionException
 import com.example.ksqldb.TestData._
 import io.circe.generic.auto._
 import io.confluent.ksql.api.client.exception.KsqlClientException
-import io.confluent.ksql.api.client.{Client, ClientOptions, ExecuteStatementResult, Row}
-import org.apache.kafka.clients.admin.{AdminClient, AdminClientConfig}
+import io.confluent.ksql.api.client.{ Client, ClientOptions, ExecuteStatementResult, Row }
+import org.apache.kafka.clients.admin.{ AdminClient, AdminClientConfig }
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.freespec.AnyFreeSpec
 import org.scalatest.matchers.must.Matchers
@@ -18,57 +18,60 @@ import scala.jdk.CollectionConverters._
 
 class KsqlDbTableSpec extends AnyFreeSpec with Matchers with BeforeAndAfterAll { // with FutureConverter {
 
-  val KSQLDB_SERVER_HOST = "localhost"
+  val KSQLDB_SERVER_HOST      = "localhost"
   val KSQLDB_SERVER_HOST_PORT = 8088
 
-  val options: ClientOptions = ClientOptions.create()
+  val options: ClientOptions = ClientOptions
+    .create()
     .setHost(KSQLDB_SERVER_HOST)
     .setPort(KSQLDB_SERVER_HOST_PORT)
 
   val client: Client = Client.create(options)
 
-  val adminClientProps = new Properties()
+  val adminClientProps              = new Properties()
   private val adminBootstrapServers = "localhost:29092"
   adminClientProps.put(AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG, adminBootstrapServers)
   val adminClient: AdminClient = AdminClient.create(adminClientProps)
 
-  val users: Seq[User] = random[User](50).distinctBy(_.id).take(5)
-  val userIds: Seq[String] = users.map(_.id)
-  val products: Seq[Product] = random[Product](50).distinctBy(_.id).take(prodIds.size)
+  val users: Seq[User]        = random[User](50).distinctBy(_.id).take(5)
+  val userIds: Seq[String]    = users.map(_.id)
+  val products: Seq[Product]  = random[Product](50).distinctBy(_.id).take(prodIds.size)
   val productIds: Seq[String] = products.map(_.id)
-  val orders: Seq[Order] = random[Order](100).filter(o => userIds.contains(o.userId) && productIds.contains(o.prodId))
+  val orders: Seq[Order] =
+    random[Order](100).filter(o => userIds.contains(o.userId) && productIds.contains(o.prodId))
 
-  val userTopicName = "users"
+  val userTopicName    = "users"
   val productTopicName = "products"
-  val orderTopicName = "orders"
+  val orderTopicName   = "orders"
 
-  val userStreamName = "userStream"
-  val userTableName = "userTable"
+  val userStreamName    = "userStream"
+  val userTableName     = "userTable"
   val productStreamName = "productStream"
-  val productTableName = "productTable"
+  val productTableName  = "productTable"
   val productTableName2 = "productTable2"
-  val orderStreamName = "orderStream"
+  val orderStreamName   = "orderStream"
 
   override def beforeAll(): Unit = {
 
-    TestHelper.deleteStream(userStreamName, client, adminClient)
-    TestHelper.deleteTable(userTableName, client)
+//    TestHelper.deleteStream(userStreamName, client, adminClient)
+//    TestHelper.deleteTable(userTableName, client)
+//
+//    TestHelper.deleteStream(productStreamName, client, adminClient)
+//    TestHelper.deleteTable(productTableName, client)
+//    TestHelper.deleteTable(productTableName2, client)
+//
+//    TestHelper.deleteStream(orderStreamName, client, adminClient)
 
-    TestHelper.deleteStream(productStreamName, client, adminClient)
-    TestHelper.deleteTable(productTableName, client)
-    TestHelper.deleteTable(productTableName2, client)
-
-    TestHelper.deleteStream(orderStreamName, client, adminClient)
-
-    TestHelper.createTopic( userTopicName, adminClient, 1, 1)
+    TestHelper.createTopic(userTopicName, adminClient, 1, 1)
     TestHelper.createTopic(productTopicName, adminClient, 1, 1)
     TestHelper.createTopic(orderTopicName, adminClient, 1, 1)
 
     val userProducer = JsonStringProducer[String, User](adminBootstrapServers, userTopicName)
-    val userRecords = userProducer.makeRecords((users map (d => d.id -> d)).toMap)
+    val userRecords  = userProducer.makeRecords((users map (d => d.id -> d)).toMap)
     userProducer.run(userRecords)
 
-    val productProducer = JsonStringProducer[String, Product](adminBootstrapServers, productTopicName)
+    val productProducer =
+      JsonStringProducer[String, Product](adminBootstrapServers, productTopicName)
     val productRecords = productProducer.makeRecords((products map (d => d.id -> d)).toMap)
     productProducer.run(productRecords)
 
@@ -82,6 +85,14 @@ class KsqlDbTableSpec extends AnyFreeSpec with Matchers with BeforeAndAfterAll {
   override def afterAll(): Unit = {
     client.close()
     super.afterAll()
+  }
+
+  "create test products" in {
+
+    val productProducer2 =
+      JsonStringProducer[String, Product](adminBootstrapServers, productTopicName)
+    val productRecords2 = productProducer2.makeRecords((products map (d => d.id -> d)).toMap)
+    productProducer2.run(productRecords2)
   }
 
   "table with existing topic - not materialized -> no pull queries, but push queries" in {
@@ -105,13 +116,13 @@ class KsqlDbTableSpec extends AnyFreeSpec with Matchers with BeforeAndAfterAll {
     val pullQueryFromTable = s"SELECT * FROM $userTableName WHERE id = '1';"
 
     // Can't pull from `USERTABLE` as it's not a materialized table
-    val t: Throwable = intercept[Throwable] { client.executeQuery(pullQueryFromTable).get }
+    val t: Throwable = intercept[Throwable](client.executeQuery(pullQueryFromTable).get)
     t mustBe a[ExecutionException]
     t.getCause mustBe a[KsqlClientException]
     t.getMessage.contains("not a materialized table") mustBe true
 
-    val limit: Int = 3
-    val pushQueryFromTable = s"SELECT * FROM $userTableName EMIT CHANGES LIMIT $limit;"
+    val limit: Int              = 3
+    val pushQueryFromTable      = s"SELECT * FROM $userTableName EMIT CHANGES LIMIT $limit;"
     val resPush: util.List[Row] = client.executeQuery(pushQueryFromTable).get
     resPush.size() mustBe limit
   }
@@ -129,7 +140,7 @@ class KsqlDbTableSpec extends AnyFreeSpec with Matchers with BeforeAndAfterAll {
         |) EMIT CHANGES;
         |""".stripMargin
 
-    val t: Throwable = intercept[Throwable] { client.executeStatement(createProductTableSql).get }
+    val t: Throwable = intercept[Throwable](client.executeStatement(createProductTableSql).get)
     t mustBe a[ExecutionException]
     t.getCause mustBe a[KsqlClientException]
     t.getMessage.contains("mismatched input 'EMIT' expecting ';'") mustBe true
@@ -137,7 +148,8 @@ class KsqlDbTableSpec extends AnyFreeSpec with Matchers with BeforeAndAfterAll {
 
   "create table from stream - can emit changes?" in {
 
-    val createUserStreamSql = s"CREATE STREAM $productStreamName (id VARCHAR KEY, description VARCHAR) WITH (kafka_topic='products', value_format='json');"
+    val createUserStreamSql =
+      s"CREATE STREAM $productStreamName (id VARCHAR KEY, description VARCHAR) WITH (kafka_topic='products', value_format='json');"
 
     val stream: ExecuteStatementResult = client.executeStatement(createUserStreamSql).get()
     println(stream)
@@ -151,8 +163,10 @@ class KsqlDbTableSpec extends AnyFreeSpec with Matchers with BeforeAndAfterAll {
                                     |""".stripMargin
 
     // requires an AGG
-    val err = intercept[Throwable] { client.executeStatement(createProductTableSql_stream).get }
-    err.getMessage.contains("our SELECT query produces a STREAM. Please use CREATE STREAM AS SELECT statement instead") mustBe true
+    val err = intercept[Throwable](client.executeStatement(createProductTableSql_stream).get)
+    err.getMessage.contains(
+      "our SELECT query produces a STREAM. Please use CREATE STREAM AS SELECT statement instead"
+    ) mustBe true
 
     // GROUP BY requires aggregate functions in either the SELECT or HAVING clause
     val createProductTableSql_noAgg = s"""CREATE TABLE $productTableName AS SELECT
@@ -162,8 +176,10 @@ class KsqlDbTableSpec extends AnyFreeSpec with Matchers with BeforeAndAfterAll {
                                     |EMIT CHANGES;
                                     |""".stripMargin
 
-    val errNoAgg = intercept[Throwable] { client.executeStatement(createProductTableSql_noAgg).get }
-    errNoAgg.getMessage.contains("GROUP BY requires aggregate functions in either the SELECT or HAVING clause") mustBe true
+    val errNoAgg = intercept[Throwable](client.executeStatement(createProductTableSql_noAgg).get)
+    errNoAgg.getMessage.contains(
+      "GROUP BY requires aggregate functions in either the SELECT or HAVING clause"
+    ) mustBe true
 
     // Use of aggregate function COUNT requires a GROUP BY clause
     val createProductTableSql_noGroupBy = s"""CREATE TABLE $productTableName AS SELECT
@@ -172,8 +188,12 @@ class KsqlDbTableSpec extends AnyFreeSpec with Matchers with BeforeAndAfterAll {
          |EMIT CHANGES;
          |""".stripMargin
 
-    val errNoGroupBy = intercept[Throwable] { client.executeStatement(createProductTableSql_noGroupBy).get }
-    errNoGroupBy.getMessage.contains("Use of aggregate function COUNT requires a GROUP BY clause") mustBe true
+    val errNoGroupBy = intercept[Throwable] {
+      client.executeStatement(createProductTableSql_noGroupBy).get
+    }
+    errNoGroupBy.getMessage.contains(
+      "Use of aggregate function COUNT requires a GROUP BY clause"
+    ) mustBe true
 
     // Non-aggregate SELECT expression(s) not part of GROUP BY: DESCRIPTION
     val createProductTableSql_nonAggNotInGroupBy = s"""CREATE TABLE $productTableName AS SELECT
@@ -183,8 +203,12 @@ class KsqlDbTableSpec extends AnyFreeSpec with Matchers with BeforeAndAfterAll {
                                     |EMIT CHANGES;
                                     |""".stripMargin
 
-    val errNonAggNotInGroupBy = intercept[Throwable] { client.executeStatement(createProductTableSql_nonAggNotInGroupBy).get }
-    errNonAggNotInGroupBy.getMessage.contains("Non-aggregate SELECT expression(s) not part of GROUP BY") mustBe true
+    val errNonAggNotInGroupBy = intercept[Throwable] {
+      client.executeStatement(createProductTableSql_nonAggNotInGroupBy).get
+    }
+    errNonAggNotInGroupBy.getMessage.contains(
+      "Non-aggregate SELECT expression(s) not part of GROUP BY"
+    ) mustBe true
 
     // works, contains no data
     // if executed from CLI, terminates without data
@@ -195,7 +219,8 @@ class KsqlDbTableSpec extends AnyFreeSpec with Matchers with BeforeAndAfterAll {
                                     |EMIT CHANGES;
                                     |""".stripMargin
 
-    val createT: ExecuteStatementResult =  client.executeStatement(createProductTableSql_simpleGroupBy).get
+    val createT: ExecuteStatementResult =
+      client.executeStatement(createProductTableSql_simpleGroupBy).get
     println(createT)
 
     // grouping by all non-aggregates works, but the compund key is strange:
@@ -218,8 +243,8 @@ class KsqlDbTableSpec extends AnyFreeSpec with Matchers with BeforeAndAfterAll {
                                     |""".stripMargin
 
     // TODO - dropping the table fails, bc of missing source, need to clarify
-  //  val productTableCreated = client.executeStatement(createProductTableSql_compGroupBy).get
-  //  println(productTableCreated)
+    //  val productTableCreated = client.executeStatement(createProductTableSql_compGroupBy).get
+    //  println(productTableCreated)
 
     // pull queries possible, but need to wait:
     // KeyQueryMetadata not available for state store Aggregate-Aggregate-Materialize and key Struct{X=X}
@@ -228,7 +253,7 @@ class KsqlDbTableSpec extends AnyFreeSpec with Matchers with BeforeAndAfterAll {
     // Unable to execute pull query: SELECT * FROM productTable WHERE id = 'bargainizer';
 
     Thread.sleep(500)
-    val pullQueryFromTable = s"SELECT * FROM $productTableName WHERE id = '${prodIds.head}';"
+    val pullQueryFromTable       = s"SELECT * FROM $productTableName WHERE id = '${prodIds.head}';"
     val res: mutable.Buffer[Row] = client.executeQuery(pullQueryFromTable).get.asScala
     println("result:")
     res foreach println
@@ -241,8 +266,5 @@ class KsqlDbTableSpec extends AnyFreeSpec with Matchers with BeforeAndAfterAll {
 //    println("result2:")
 //    res2.asScala foreach println
   }
-
-
-
 
 }

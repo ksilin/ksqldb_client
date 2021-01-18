@@ -4,7 +4,16 @@ import java.util
 import java.util.Properties
 import java.util.concurrent.CompletableFuture
 
-import io.confluent.ksql.api.client.{BatchedQueryResult, Client, ClientOptions, ExecuteStatementResult, KsqlObject, Row, SourceDescription, StreamInfo, StreamedQueryResult}
+import io.confluent.ksql.api.client.{
+  Client,
+  ClientOptions,
+  ExecuteStatementResult,
+  KsqlObject,
+  Row,
+  SourceDescription,
+  StreamInfo,
+  StreamedQueryResult
+}
 import org.scalatest.freespec.AnyFreeSpec
 import org.scalatest.matchers.must.Matchers
 import java.time.Duration
@@ -19,26 +28,31 @@ import com.example.ksqldb.TestHelper.printSourceDescription
 import kantan.csv._
 import kantan.csv.ops._
 import kantan.csv.generic._
-import org.apache.kafka.clients.admin.{AdminClient, AdminClientConfig}
+import org.apache.kafka.clients.admin.{ AdminClient, AdminClientConfig }
 import org.scalatest.BeforeAndAfterAll
 
 import scala.collection.mutable
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
 
-class KsqlDbLocalQuickstartSpec extends AnyFreeSpec with Matchers with BeforeAndAfterAll with FutureConverter {
+class KsqlDbLocalQuickstartSpec
+    extends AnyFreeSpec
+    with Matchers
+    with BeforeAndAfterAll
+    with FutureConverter {
 
-  val KSQLDB_SERVER_HOST = "localhost"
+  val KSQLDB_SERVER_HOST      = "localhost"
   val KSQLDB_SERVER_HOST_PORT = 8088
-  val options: ClientOptions = ClientOptions.create()
+  val options: ClientOptions = ClientOptions
+    .create()
     .setHost(KSQLDB_SERVER_HOST)
     .setPort(KSQLDB_SERVER_HOST_PORT)
   val client: Client = Client.create(options)
 
   val streamName = "riderLocations"
-  val tableName = "mv_close"
+  val tableName  = "mv_close"
 
-  val adminClientProps = new Properties()
+  val adminClientProps      = new Properties()
   val adminBootstrapServers = "localhost:29092"
   adminClientProps.put(AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG, adminBootstrapServers)
   val adminClient: AdminClient = AdminClient.create(adminClientProps)
@@ -64,12 +78,13 @@ class KsqlDbLocalQuickstartSpec extends AnyFreeSpec with Matchers with BeforeAnd
          | (profileId VARCHAR KEY, latitude DOUBLE, longitude DOUBLE, timestamp BIGINT)
          | WITH (kafka_topic='locations', value_format='json', partitions=1, timestamp='timestamp');""".stripMargin
 
-    val createdRiderLocationStream: ExecuteStatementResult  = client.executeStatement(createRiderLocationStreamSql).get
+    val createdRiderLocationStream: ExecuteStatementResult =
+      client.executeStatement(createRiderLocationStreamSql).get
     createdRiderLocationStream.queryId() mustBe empty // no persistent query
 
     // must have our new stream now
     val streamsAfter: util.List[StreamInfo] = client.listStreams().get
-    streamsAfter.asScala.find(_.getName.equalsIgnoreCase(streamName)) must not be (empty)
+    streamsAfter.asScala.find(_.getName.equalsIgnoreCase(streamName)) must not be empty
 
     val describeStream: SourceDescription = client.describeSource(streamName).get
     println(s"describing stream $streamName:")
@@ -80,7 +95,8 @@ class KsqlDbLocalQuickstartSpec extends AnyFreeSpec with Matchers with BeforeAnd
          |WHERE GEO_DISTANCE(latitude, longitude, 37.4133, -122.1162) <= 5
          |EMIT CHANGES;""".stripMargin
 
-    val closeRiderPushQuery: StreamedQueryResult = client.streamQuery(selectCloseRidersPushQuery).get
+    val closeRiderPushQuery: StreamedQueryResult =
+      client.streamQuery(selectCloseRidersPushQuery).get
     // only push queries have an Id, pull queries terminate after being finished
     println(s"createdCloseRiderPushQuery: $closeRiderPushQuery")
 
@@ -92,7 +108,8 @@ class KsqlDbLocalQuickstartSpec extends AnyFreeSpec with Matchers with BeforeAnd
          |GROUP BY profileId
          |EMIT CHANGES;""".stripMargin
 
-    val createdCloseRiderMatPushStatement: ExecuteStatementResult = client.executeStatement(selectCloseRidersPushQueryAsTable).get
+    val createdCloseRiderMatPushStatement: ExecuteStatementResult =
+      client.executeStatement(selectCloseRidersPushQueryAsTable).get
     createdCloseRiderMatPushStatement.queryId() mustNot be(empty)
     println(s"created table: $createdCloseRiderMatPushStatement")
     val describeTable: SourceDescription = client.describeSource(tableName).get
@@ -100,14 +117,18 @@ class KsqlDbLocalQuickstartSpec extends AnyFreeSpec with Matchers with BeforeAnd
     printSourceDescription(describeTable)
 
     val pushQueryPollTimeout = Duration.ofMillis(100)
-    val firstRow: Row = closeRiderPushQuery.poll(pushQueryPollTimeout)
+    val firstRow: Row        = closeRiderPushQuery.poll(pushQueryPollTimeout)
     firstRow mustBe null // no data yet
 
-    val riderLocations: List[RiderLocation] = getRiderLocationsUnsafe("riderLocations.csv")
+    val riderLocations: List[RiderLocation] = readRiderLocationsFromFileUnsafe("riderLocations.csv")
 
-    Future.traverse(riderLocations){ rl: RiderLocation =>
+    Future.traverse(riderLocations) { rl: RiderLocation =>
       println(s"riderLocation: $rl")
-      val row = new KsqlObject().put("profileId", rl.profileId).put("latitude", rl.latitude).put("longitude", rl.longitude).put("timestamp", rl.timestamp)
+      val row = new KsqlObject()
+        .put("profileId", rl.profileId)
+        .put("latitude", rl.latitude)
+        .put("longitude", rl.longitude)
+        .put("timestamp", rl.timestamp)
       val insert: CompletableFuture[Void] = client.insertInto(streamName, row)
       toScalaFuture(insert).map(_ => println(s"inserted $rl"))
     }
@@ -115,14 +136,17 @@ class KsqlDbLocalQuickstartSpec extends AnyFreeSpec with Matchers with BeforeAnd
     println("polling push query results:")
     (1 until 5).foreach { _ =>
       val row: Row = closeRiderPushQuery.poll(pushQueryPollTimeout)
-      println(s"are we done/failed yet? ${closeRiderPushQuery.isComplete}/${closeRiderPushQuery.isFailed}")
+      println(
+        s"are we done/failed yet? ${closeRiderPushQuery.isComplete}/${closeRiderPushQuery.isFailed}"
+      )
       println(row)
     }
 
     // Pull queries require a WHERE clause that limits the query to a single key, e.g. `SELECT * FROM X WHERE myKey=Y;`
     val selectCloseRidersPullQuery = s"SELECT * FROM $tableName WHERE profileId = '4ab5cbad';"
     // now as pull query:
-    val rowsFromPullQuery: mutable.Buffer[Row] = client.executeQuery(selectCloseRidersPullQuery).get.asScala
+    val rowsFromPullQuery: mutable.Buffer[Row] =
+      client.executeQuery(selectCloseRidersPullQuery).get.asScala
     rowsFromPullQuery.size mustBe 1
 
     // no results from a terminated query:
@@ -130,21 +154,22 @@ class KsqlDbLocalQuickstartSpec extends AnyFreeSpec with Matchers with BeforeAnd
     Thread.sleep(200) // need to wait for the query to actually terminate
 
     // push query does not terminate
-    println(s"are we done/failed yet? ${closeRiderPushQuery.isComplete}/${closeRiderPushQuery.isFailed}")
+    println(
+      s"are we done/failed yet? ${closeRiderPushQuery.isComplete}/${closeRiderPushQuery.isFailed}"
+    )
     val row: Row = closeRiderPushQuery.poll(pushQueryPollTimeout)
     println(row)
 
     Thread.sleep(1000) // make sure we dont break the polling
   }
 
-
-  def getRiderLocationsUnsafe(resourceFileName: String): List[RiderLocation] = {
+  def readRiderLocationsFromFileUnsafe(resourceFileName: String): List[RiderLocation] = {
     import CsvTypes.RiderLocation
-    val ksqlLines: InputStream = Resource.getAsStream(resourceFileName)
+    val ksqlLines: InputStream                       = Resource.getAsStream(resourceFileName)
     val reader: CsvReader[ReadResult[RiderLocation]] = ksqlLines.asCsvReader[RiderLocation](rfc)
     println("inserting data")
     val (locationsMaybe, failures) = reader.toList.partition(_.isRight)
-    if(failures.nonEmpty) {
+    if (failures.nonEmpty) {
       println(s"found ${failures.size} failures:")
       failures foreach println
     }
