@@ -13,7 +13,8 @@ case class LocalSetup(host: String = "localhost", ksqlDbPort: Int = 8088, broker
     .setPort(ksqlDbPort)
   val client: Client = Client.create(options)
 
+  val adminClientBootstrapServer = s"$host:$brokerPort"
   private val adminClientProps      = new Properties()
-  adminClientProps.put(AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG, s"$host:$brokerPort")
+  adminClientProps.put(AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG, adminClientBootstrapServer)
   val adminClient: AdminClient = AdminClient.create(adminClientProps)
 }

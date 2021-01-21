@@ -95,6 +95,7 @@ lazy val commonSettings =
       "-encoding", "UTF-8",
       "-Ywarn-unused:imports",
     ),
+    // find latest repo here: https://docs.ksqldb.io/en/latest/developer-guide/ksqldb-clients/java-client/
     resolvers ++= Seq("confluent" at "https://packages.confluent.io/maven",
       "ksqlDb" at "https://ksqldb-maven.s3.amazonaws.com/maven",
       "confluentJenkins" at "https://jenkins-confluent-packages-beta-maven.s3.amazonaws.com/6.1.0-beta200715032424/1/maven/",

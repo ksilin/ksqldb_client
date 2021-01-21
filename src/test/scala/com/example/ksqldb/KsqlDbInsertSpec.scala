@@ -73,6 +73,7 @@ class KsqlDbInsertSpec
     )
   }
 
+  // https://github.com/confluentinc/ksql/pull/5641/files
   "must insert rows into stream via reactive publisher" in {
 
     val createdStream: ExecuteStatementResult =
@@ -83,10 +84,9 @@ class KsqlDbInsertSpec
     pushQuery.subscribe(TestHelper.makeRowObserver("insert test: ").toReactive(scheduler))
 
     val observable = Observable.range(10, 0, -1).map { i =>
-      val row = new KsqlObject()
+      new KsqlObject()
         .put("id", i.toString)
         .put("amount", i)
-      row
     }
     val pub: Publisher[KsqlObject] = observable.toReactivePublisher(scheduler)
 

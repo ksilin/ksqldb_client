@@ -6,12 +6,11 @@ import com.example.ksqldb.TestData._
 import io.circe.generic.auto._
 import io.confluent.ksql.api.client.{
   Client,
-  ClientOptions,
   ExecuteStatementResult,
   Row,
   StreamedQueryResult
 }
-import org.apache.kafka.clients.admin.{ AdminClient, AdminClientConfig }
+import org.apache.kafka.clients.admin.AdminClient
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.freespec.AnyFreeSpec
 import org.scalatest.matchers.must.Matchers
@@ -36,19 +35,9 @@ class KsqlDbJoinSpec
   loglevelProps.setProperty("org.apache.kafka", LogLevel.WARN.name)
   Logger.setLogLevels(loglevelProps)
 
-  val KSQLDB_SERVER_HOST      = "localhost"
-  val KSQLDB_SERVER_HOST_PORT = 8088
-
-  val options: ClientOptions = ClientOptions
-    .create()
-    .setHost(KSQLDB_SERVER_HOST)
-    .setPort(KSQLDB_SERVER_HOST_PORT)
-  val client: Client = Client.create(options)
-
-  val adminClientProps              = new Properties()
-  private val adminBootstrapServers = "localhost:29092"
-  adminClientProps.put(AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG, adminBootstrapServers)
-  val adminClient: AdminClient = AdminClient.create(adminClientProps)
+  val setup: LocalSetup = LocalSetup()
+  val client: Client = setup.client
+  val adminClient: AdminClient = setup.adminClient
 
   val users: Seq[User]     = random[User](50).distinctBy(_.id).take(5)
   val userIds: Seq[String] = users.map(_.id)
@@ -63,6 +52,11 @@ class KsqlDbJoinSpec
   val leftJoinedStreamName             = "joinedStreamLeft"
   val innerJoinedStreamName            = "joinedStreamInner"
   val userClicksStreamToStreamJoinName = "userClickstreamStreamToStreamJoin"
+  val orderTopicName    = "orders"
+  val shipmentTopicName = "shipments"
+  val orderStreamName               = "orderStream"
+  val shipmentStreamName            = "shipmentStream"
+  val orderShipmentJoinedStreamName = "orderShipmentStream"
 
   val now: Long                  = System.currentTimeMillis()
   val step                       = 10000
@@ -86,93 +80,6 @@ class KsqlDbJoinSpec
     orderedShipments.zip(orderTimestamps.takeRight(orderedShipments.size)).map { case (s, ts) =>
       s.copy(timestamp = ts)
     }
-
-  val orderTopicName    = "orders"
-  val shipmentTopicName = "shipments"
-
-  val orderStreamName               = "orderStream"
-  val shipmentStreamName            = "shipmentStream"
-  val orderShipmentJoinedStreamName = "orderShipmentStream"
-
-  def prepareClicksAndUsers(produceTestData: Boolean = true): Unit = {
-    TestHelper.deleteTable(userTableName, client)
-    TestHelper.deleteStream(clickStreamName, client, adminClient)
-    TestHelper.deleteStream(leftJoinedStreamName, client, adminClient)
-    TestHelper.deleteStream(innerJoinedStreamName, client, adminClient)
-    TestHelper.deleteStream(userStreamName, client, adminClient)
-    TestHelper.deleteStream(userClicksStreamToStreamJoinName, client, adminClient)
-
-    TestHelper.deleteTopic(clickTopicName, adminClient)
-    TestHelper.deleteTopic(userTopicName, adminClient)
-
-    TestHelper.createTopic(clickTopicName, adminClient)
-    TestHelper.createTopic(userTopicName, adminClient)
-
-    if (produceTestData) {
-      val userProducer = JsonStringProducer[String, User](
-        adminBootstrapServers,
-        userTopicName,
-        "userProducer" + Random.alphanumeric.take(10).mkString
-      )
-      val userRecords = userProducer.makeRecords((users map (d => d.id -> d)).toMap)
-      userProducer.run(userRecords)
-
-      val clickProducer = JsonStringProducer[String, Click](
-        adminBootstrapServers,
-        clickTopicName,
-        "clickProducer" + Random.alphanumeric.take(10).mkString
-      )
-      val clickRecords = clickProducer.makeRecords((clicksFromKnownUsers map (d => d.userId -> d)))
-      clickProducer.run(clickRecords)
-    }
-
-    val createClickStreamSql =
-      s"CREATE STREAM $clickStreamName (userId VARCHAR KEY, element VARCHAR, userAgent VARCHAR, timestamp BIGINT ) WITH (kafka_topic='$clickTopicName', value_format='json', timestamp = 'timestamp');"
-
-    val clickStreamCreated: ExecuteStatementResult =
-      client.executeStatement(createClickStreamSql).get()
-    info(clickStreamCreated)
-  }
-
-  def prepareOrdersAndShipments(produceTestData: Boolean = true): Unit = {
-
-    TestHelper.deleteStream(orderStreamName, client, adminClient)
-    TestHelper.deleteStream(shipmentStreamName, client, adminClient)
-    TestHelper.deleteStream(orderShipmentJoinedStreamName, client, adminClient)
-
-    TestHelper.deleteTopic(orderTopicName, adminClient)
-    TestHelper.deleteTopic(shipmentTopicName, adminClient)
-
-    TestHelper.createTopic(orderTopicName, adminClient)
-    TestHelper.createTopic(shipmentTopicName, adminClient)
-
-    if (produceTestData) {
-      val orderProducer = JsonStringProducer[String, Order](adminBootstrapServers, orderTopicName)
-      val orderRecords =
-        orderProducer.makeRecords((ordersWithNewTimestamps map (d => d.id -> d)).toMap)
-      orderProducer.run(orderRecords)
-
-      val shipmentProducer =
-        JsonStringProducer[String, Shipment](adminBootstrapServers, shipmentTopicName)
-      val shipmentRecords =
-        shipmentProducer.makeRecords((shipmentsWithNewTimestamps map (d => d.id -> d)).toMap)
-      shipmentProducer.run(shipmentRecords)
-    }
-
-    val createOrderStreamSql =
-      s"CREATE STREAM $orderStreamName (id VARCHAR KEY, userId VARCHAR, prodId VARCHAR, amount INT, location VARCHAR, timestamp BIGINT ) WITH (kafka_topic='$orderTopicName', value_format='json', timestamp = 'timestamp');"
-
-    val orderStreamCreated: ExecuteStatementResult =
-      client.executeStatement(createOrderStreamSql).get()
-    info(orderStreamCreated)
-
-    val createShipmentStreamSql =
-      s"CREATE STREAM $shipmentStreamName (id VARCHAR KEY, orderId VARCHAR, warehouse VARCHAR, timestamp BIGINT ) WITH (kafka_topic='$shipmentTopicName', value_format='json', timestamp = 'timestamp');"
-
-    val shipmentStreamCreated: ExecuteStatementResult =
-      client.executeStatement(createShipmentStreamSql).get()
-    info(shipmentStreamCreated)
-  }
 
   override def afterAll(): Unit = {
     client.close()
@@ -298,12 +205,12 @@ class KsqlDbJoinSpec
 
     // produce test data
     val userProducer = JsonStringProducer[String, User](
-      adminBootstrapServers,
+      setup.adminClientBootstrapServer,
       userTopicName,
       "userProducer" + Random.alphanumeric.take(10).mkString
     )
     val clickProducer = JsonStringProducer[String, Click](
-      adminBootstrapServers,
+      setup.adminClientBootstrapServer,
       clickTopicName,
       "clickProducer" + Random.alphanumeric.take(10).mkString
     )
@@ -542,10 +449,10 @@ class KsqlDbJoinSpec
       TestHelper.makeRowObserver(prefix = "orderShipmentJoin").toReactive(scheduler)
     )
 
-    val orderProducer = JsonStringProducer[String, Order](adminBootstrapServers, orderTopicName)
+    val orderProducer = JsonStringProducer[String, Order](setup.adminClientBootstrapServer, orderTopicName)
 
     val shipmentProducer =
-      JsonStringProducer[String, Shipment](adminBootstrapServers, shipmentTopicName)
+      JsonStringProducer[String, Shipment](setup.adminClientBootstrapServer, shipmentTopicName)
 
     val now: Long = System.currentTimeMillis()
 
@@ -575,7 +482,86 @@ class KsqlDbJoinSpec
     // 1607595536230 - 1607595296230 = 4 minutes
 
     Thread.sleep(10000)
+  }
 
+  def prepareClicksAndUsers(produceTestData: Boolean = true): Unit = {
+    TestHelper.deleteTable(userTableName, client)
+    TestHelper.deleteStream(clickStreamName, client, adminClient)
+    TestHelper.deleteStream(leftJoinedStreamName, client, adminClient)
+    TestHelper.deleteStream(innerJoinedStreamName, client, adminClient)
+    TestHelper.deleteStream(userStreamName, client, adminClient)
+    TestHelper.deleteStream(userClicksStreamToStreamJoinName, client, adminClient)
+
+    TestHelper.deleteTopic(clickTopicName, adminClient)
+    TestHelper.deleteTopic(userTopicName, adminClient)
+
+    TestHelper.createTopic(clickTopicName, adminClient)
+    TestHelper.createTopic(userTopicName, adminClient)
+
+    if (produceTestData) {
+      val userProducer = JsonStringProducer[String, User](
+        setup.adminClientBootstrapServer,
+        userTopicName,
+        "userProducer" + Random.alphanumeric.take(10).mkString
+      )
+      val userRecords = userProducer.makeRecords((users map (d => d.id -> d)).toMap)
+      userProducer.run(userRecords)
+
+      val clickProducer = JsonStringProducer[String, Click](
+        setup.adminClientBootstrapServer,
+        clickTopicName,
+        "clickProducer" + Random.alphanumeric.take(10).mkString
+      )
+      val clickRecords = clickProducer.makeRecords((clicksFromKnownUsers map (d => d.userId -> d)))
+      clickProducer.run(clickRecords)
+    }
+
+    val createClickStreamSql =
+      s"CREATE STREAM $clickStreamName (userId VARCHAR KEY, element VARCHAR, userAgent VARCHAR, timestamp BIGINT ) WITH (kafka_topic='$clickTopicName', value_format='json', timestamp = 'timestamp');"
+
+    val clickStreamCreated: ExecuteStatementResult =
+      client.executeStatement(createClickStreamSql).get()
+    info(clickStreamCreated)
+  }
+
+  def prepareOrdersAndShipments(produceTestData: Boolean = true): Unit = {
+
+    TestHelper.deleteStream(orderStreamName, client, adminClient)
+    TestHelper.deleteStream(shipmentStreamName, client, adminClient)
+    TestHelper.deleteStream(orderShipmentJoinedStreamName, client, adminClient)
+
+    TestHelper.deleteTopic(orderTopicName, adminClient)
+    TestHelper.deleteTopic(shipmentTopicName, adminClient)
+
+    TestHelper.createTopic(orderTopicName, adminClient)
+    TestHelper.createTopic(shipmentTopicName, adminClient)
+
+    if (produceTestData) {
+      val orderProducer = JsonStringProducer[String, Order](setup.adminClientBootstrapServer, orderTopicName)
+      val orderRecords =
+        orderProducer.makeRecords((ordersWithNewTimestamps map (d => d.id -> d)).toMap)
+      orderProducer.run(orderRecords)
+
+      val shipmentProducer =
+        JsonStringProducer[String, Shipment](setup.adminClientBootstrapServer, shipmentTopicName)
+      val shipmentRecords =
+        shipmentProducer.makeRecords((shipmentsWithNewTimestamps map (d => d.id -> d)).toMap)
+      shipmentProducer.run(shipmentRecords)
+    }
+
+    val createOrderStreamSql =
+      s"CREATE STREAM $orderStreamName (id VARCHAR KEY, userId VARCHAR, prodId VARCHAR, amount INT, location VARCHAR, timestamp BIGINT ) WITH (kafka_topic='$orderTopicName', value_format='json', timestamp = 'timestamp');"
+
+    val orderStreamCreated: ExecuteStatementResult =
+      client.executeStatement(createOrderStreamSql).get()
+    info(orderStreamCreated)
+
+    val createShipmentStreamSql =
+      s"CREATE STREAM $shipmentStreamName (id VARCHAR KEY, orderId VARCHAR, warehouse VARCHAR, timestamp BIGINT ) WITH (kafka_topic='$shipmentTopicName', value_format='json', timestamp = 'timestamp');"
+
+    val shipmentStreamCreated: ExecuteStatementResult =
+      client.executeStatement(createShipmentStreamSql).get()
+    info(shipmentStreamCreated)
   }
 
 }
