@@ -23,6 +23,14 @@ import scala.collection.mutable
 
 object TestHelper extends LogSupport {
 
+
+  def prepareTest(streamsToDelete: List[String] = Nil, tablesToDelete: List[String] = Nil, topicsToDelete: List[String] = Nil, topicsToCreate: List[String] = Nil, client: Client, adminClient: AdminClient): Unit = {
+    streamsToDelete foreach { s => deleteStream(s, client, adminClient) }
+    tablesToDelete foreach {t => deleteTable(t, client)}
+    topicsToCreate foreach { t => createTopic(t, adminClient)}
+    topicsToDelete ++ tablesToDelete.map(_.toUpperCase) foreach { t => deleteTopic(t, adminClient)}
+  }
+
   def createTopic(
       topicName: String,
       adminClient: AdminClient,
@@ -43,7 +51,7 @@ object TestHelper extends LogSupport {
           adminClient.createTopics(Collections.singleton(newTopic))
         topicsCreationResult.all().get()
       } catch {
-        case e: Throwable => debug(e)
+        case e: Throwable => info(e)
       }
     } else {
       info(s"topic $topicName already exists, skipping")

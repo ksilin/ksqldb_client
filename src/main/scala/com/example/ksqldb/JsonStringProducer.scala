@@ -33,7 +33,10 @@ case class JsonStringProducer[K, V](
   val producer = new KafkaProducer[K, String](producerProperties)
 
   def makeRecords(recordMap: Iterable[(K, V)]): Iterable[ProducerRecord[K, String]] =
-    recordMap.map { case (k, v) => new ProducerRecord[K, String](topic, k, v.asJson.noSpaces) }
+    recordMap.map{case (k, v) => makeRecord(k, v)}
+
+  def makeRecord(key: K, value: V): ProducerRecord[K, String] =
+    new ProducerRecord[K, String](topic, key, value.asJson.noSpaces)
 
   def run(msgs: Iterable[ProducerRecord[K, String]], sendDelayMs: Int = 0): Unit =
     msgs foreach { r =>

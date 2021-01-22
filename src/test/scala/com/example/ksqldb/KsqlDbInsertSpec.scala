@@ -44,7 +44,7 @@ class KsqlDbInsertSpec
 
   "must fail on inserting data breaking the stream schema"
 
-  "must succees on inserting 'wider' data - all fields in schema contained, but also some additional ones"
+  "must succeed on inserting 'wider' data - all fields in schema contained, but also some additional ones"
 
   "must insert rows into stream via Client.insert" in {
 
