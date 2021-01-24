@@ -6,6 +6,8 @@ import java.time.Duration
 import scala.jdk.CollectionConverters._
 import scala.util.Random
 
+case class Xy(x: Int, y: Int)
+
 class ExplodeSpec extends SpecBase {
 
   private val setup: LocalSetup        = LocalSetup()
@@ -18,7 +20,7 @@ class ExplodeSpec extends SpecBase {
     super.afterAll()
   }
 
-  "simple explode array" in {
+  "explode primitive array" in {
     val topicName          = "simpleExplode"
     val streamName         = "preExplodeStream"
     val explodedStreamName = "simpleExplodedStream"
@@ -62,6 +64,74 @@ class ExplodeSpec extends SpecBase {
 
     // expecting 8 result rows = 2 source rows with 4 values each
     (1 to 10) foreach { _ =>
+      val row: Row = q.poll(pollTimeout)
+      println(row)
+    }
+  }
+
+  "explode struct array" in {
+    val topicName          = "structExplode"
+    val streamName         = "preStructExplodeStream"
+    val explodedStreamName = "structExplodedStream"
+
+    TestHelper.prepareTest(
+      streamsToDelete = List(streamName, explodedStreamName),
+      topicsToCreate = List(topicName),
+      client = client,
+      adminClient = adminClient
+    )
+
+    val createArrayStreamSql =
+      s"""CREATE STREAM $streamName(
+         | id STRING KEY,
+         | items ARRAY<STRUCT<x INT, y INT>>,
+         | ts BIGINT)
+         | WITH (
+         | kafka_topic='$topicName',
+         | value_format='json',
+         | timestamp = 'ts'
+         | );""".stripMargin
+    client.executeStatement(createArrayStreamSql).get
+
+    val createExplodeStreamSql =
+      s"""CREATE STREAM $explodedStreamName AS SELECT
+         | id,
+         | EXPLODE(items) AS ITEM,
+         | ts
+         | FROM $streamName;""".stripMargin
+    client.executeStatement(createExplodeStreamSql).get
+
+    // does not work with Json strings
+    // Message: Can't coerce a field of type class io.vertx.core.json.JsonArray (["{\"x\": 1, \"y\": 2}","{\"x\": 3, \"y\": 4}"]) into type ARRAY<STRUCT<`X` INTEGER, `Y` INTEGER>>
+    val struct1 = """{"x": 1, "y": 2}"""
+    val struct2 = """{"x": 3, "y": 4}"""
+    // does nto work with case classes:
+    // Row{columnNames=[ID, ITEMS, TS], columnTypes=[ColumnType{type=STRING}, ColumnType{type=ARRAY}, ColumnType{type=BIGINT}],
+    // values=["id_struct",[{"X":null,"Y":null},{"X":null,"Y":null}],1611504156948]}
+    val xy1 = Xy(1, 2)
+    val xy2 = Xy(3, 4)
+
+    // Scala Maps do not work
+    //  Row{columnNames=[ID, ITEMS, TS], columnTypes=[ColumnType{type=STRING}, ColumnType{type=ARRAY}, ColumnType{type=BIGINT}],
+    //  values=["id_struct",[{"X":null,"Y":null},{"X":null,"Y":null}],1611504310226]}
+
+    // Java maps work
+    val xyMap1 = Map("x" -> 1, "y" -> 2).asJava
+    val xyMap2 = Map("x" -> 3, "y" -> 4).asJava
+
+    val o = new KsqlObject()
+      .put("id", "id_struct")
+      .put("items", new KsqlArray(List(xyMap1, xyMap2).asJava))
+      .put("ts", System.currentTimeMillis())
+    setup.client.insertInto(streamName, o).get()
+
+    val querySql               = s"""SELECT *
+                                    |FROM $explodedStreamName
+                                    |EMIT CHANGES;""".stripMargin
+    val q: StreamedQueryResult = client.streamQuery(querySql).get()
+
+    // expecting 2 elements
+    (1 to 3) foreach { _ =>
       val row: Row = q.poll(pollTimeout)
       println(row)
     }
@@ -111,7 +181,7 @@ class ExplodeSpec extends SpecBase {
       setup.client.insertInto(streamName, ksqlObject).get()
     }
 
-    val querySql    = s"""SELECT *
+    val querySql               = s"""SELECT *
                       |FROM $explodedStreamName
                       |EMIT CHANGES;""".stripMargin
     val q: StreamedQueryResult = client.streamQuery(querySql).get()
@@ -252,6 +322,7 @@ class ExplodeSpec extends SpecBase {
   }
 
   def makeKsqlObjectSingleArray(idSuffix: Int): KsqlObject = {
+
     val list = List(
       Random.alphanumeric.take(6).mkString,
       Random.alphanumeric.take(2).mkString,

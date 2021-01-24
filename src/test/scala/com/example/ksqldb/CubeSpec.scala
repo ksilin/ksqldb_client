@@ -21,6 +21,10 @@ class CubeSpec extends SpecBase {
     super.afterAll()
   }
 
+  // we do not explain the cube function: https://confluentinc.atlassian.net/browse/DOCS-4528
+
+  // https://github.com/confluentinc/ksql/blob/master/ksqldb-engine/src/main/java/io/confluent/ksql/function/udtf/Cube.java
+
   // existing tests do not cover combining different types
   // https://github.com/confluentinc/ksql/blob/0.14.0-ksqldb/ksqldb-functional-tests/src/test/resources/query-validation-tests/cube.json
 
