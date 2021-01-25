@@ -27,8 +27,8 @@ object TestHelper extends LogSupport {
   def prepareTest(streamsToDelete: List[String] = Nil, tablesToDelete: List[String] = Nil, topicsToDelete: List[String] = Nil, topicsToCreate: List[String] = Nil, client: Client, adminClient: AdminClient): Unit = {
     streamsToDelete foreach { s => deleteStream(s, client, adminClient) }
     tablesToDelete foreach {t => deleteTable(t, client)}
-    topicsToCreate foreach { t => createTopic(t, adminClient)}
     topicsToDelete ++ tablesToDelete.map(_.toUpperCase) foreach { t => deleteTopic(t, adminClient)}
+    topicsToCreate foreach { t => createTopic(t, adminClient)}
   }
 
   def createTopic(
@@ -58,12 +58,12 @@ object TestHelper extends LogSupport {
     }
 
   def deleteTopic(topicName: String, adminClient: AdminClient): Any = {
-    debug(s"deleting topic $topicName")
+    info(s"deleting topic $topicName")
     try {
       val topicDeletionResult = adminClient.deleteTopics(List(topicName).asJava)
       topicDeletionResult.all().get()
     } catch {
-      case e: Throwable => debug(e)
+      case e: Throwable => info(e)
     }
   }
 
@@ -79,7 +79,7 @@ object TestHelper extends LogSupport {
 
       if (deleteSinkTopic) {
         val topicName: String = streamToDelete.getTopic
-        debug(s"deleting sink topic: $topicName")
+        info(s"deleting sink topic: $topicName")
         deleteTopic(topicName, adminClient)
       }
 

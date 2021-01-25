@@ -1,12 +1,7 @@
 package com.example.ksqldb
 
 import java.util.Properties
-import org.apache.kafka.clients.producer.{
-  KafkaProducer,
-  ProducerConfig,
-  ProducerRecord,
-  RecordMetadata
-}
+import org.apache.kafka.clients.producer.{KafkaProducer, ProducerConfig, ProducerRecord, RecordMetadata}
 import io.circe._
 import io.circe.syntax._
 import org.apache.kafka.common.serialization.StringSerializer
@@ -38,11 +33,15 @@ case class JsonStringProducer[K, V](
   def makeRecord(key: K, value: V): ProducerRecord[K, String] =
     new ProducerRecord[K, String](topic, key, value.asJson.noSpaces)
 
+  def run(r: ProducerRecord[K, String]): Unit = {
+    info(s"producing $r")
+    val res: RecordMetadata = producer.send(r).get
+    info(s"produced ${res.topic()}, | ${res.partition()} | ${res.offset()} | ${res.timestamp()}")
+  }
+
   def run(msgs: Iterable[ProducerRecord[K, String]], sendDelayMs: Int = 0): Unit =
     msgs foreach { r =>
-      debug(s"producing $r")
-      val res: RecordMetadata = producer.send(r).get
-      debug(s"${res.topic()}, | ${res.partition()} | ${res.offset()} | ${res.timestamp()}")
+      run(r)
       Thread.sleep(sendDelayMs)
     }
 
