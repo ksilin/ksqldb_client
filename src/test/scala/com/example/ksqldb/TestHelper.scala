@@ -63,7 +63,7 @@ object TestHelper extends LogSupport {
       val topicDeletionResult = adminClient.deleteTopics(List(topicName).asJava)
       topicDeletionResult.all().get()
     } catch {
-      case e: Throwable => info(e)
+      case e: Throwable => debug(e)
     }
   }
 
