@@ -1,10 +1,10 @@
 package com.example.ksqldb
 
-import io.confluent.ksql.api.client.{Client, KsqlObject, StreamedQueryResult}
+import io.confluent.ksql.api.client.{ Client, KsqlObject, StreamedQueryResult }
 import org.apache.kafka.clients.admin.AdminClient
 
 import java.time.Instant
-import monix.execution.Scheduler.{global => scheduler}
+import monix.execution.Scheduler.{ global => scheduler }
 import monix.reactive.Observable
 import org.reactivestreams.Publisher
 import org.scalatest.BeforeAndAfterEach
@@ -16,7 +16,7 @@ class LateAndOutOfOrderSpec extends SpecBase with BeforeAndAfterEach {
   private val setup: LocalSetup        = LocalSetup()
   private val client: Client           = setup.client
   private val adminClient: AdminClient = setup.adminClient
-  val pollingTimeout = 5000
+  val pollingTimeout                   = 5000
 
   override def afterAll(): Unit = {
     client.close()
@@ -52,10 +52,10 @@ class LateAndOutOfOrderSpec extends SpecBase with BeforeAndAfterEach {
     val q: StreamedQueryResult = client.streamQuery(tableQuerySql).get
     q.subscribe(TestHelper.makeRowObserver("windowed").toReactive(scheduler))
 
-    val now        = Instant.now().truncatedTo(ChronoUnit.MINUTES)
-    val startEvent = makeKsqlObject(1, 10, now, 0)
+    val now             = Instant.now().truncatedTo(ChronoUnit.MINUTES)
+    val startEvent      = makeKsqlObject(1, 10, now, 0)
     val outOfOrderEvent = makeKsqlObject(1, 20, now, 130)
-    val lateEvent = makeKsqlObject(1, 40, now, 10)
+    val lateEvent       = makeKsqlObject(1, 40, now, 10)
 
     val obs: Observable[KsqlObject] = Observable(startEvent, outOfOrderEvent, lateEvent)
     val pub: Publisher[KsqlObject]  = obs.toReactivePublisher(scheduler)
@@ -77,10 +77,10 @@ class LateAndOutOfOrderSpec extends SpecBase with BeforeAndAfterEach {
     val q: StreamedQueryResult = client.streamQuery(tableQuerySql).get
     q.subscribe(TestHelper.makeRowObserver("windowed").toReactive(scheduler))
 
-    val now        = Instant.now().truncatedTo(ChronoUnit.MINUTES)
-    val startEvent = makeKsqlObject(1, 10, now, 0)
+    val now             = Instant.now().truncatedTo(ChronoUnit.MINUTES)
+    val startEvent      = makeKsqlObject(1, 10, now, 0)
     val outOfOrderEvent = makeKsqlObject(1, 20, now, 110)
-    val lateEvent = makeKsqlObject(1, 40, now, 10)
+    val lateEvent       = makeKsqlObject(1, 40, now, 10)
 
     val obs: Observable[KsqlObject] = Observable(startEvent, outOfOrderEvent, lateEvent)
     val pub: Publisher[KsqlObject]  = obs.toReactivePublisher(scheduler)
@@ -92,9 +92,11 @@ class LateAndOutOfOrderSpec extends SpecBase with BeforeAndAfterEach {
     info(s"done: ${q.isComplete}, failed: ${q.isFailed}")
   }
 
-  def makeKsqlObject(id: Int, value: Int, now: Instant, delaySeconds: Int = 0): KsqlObject ={
-    new KsqlObject().put("id", id).put("v", value).put("ts", now.plusSeconds(delaySeconds).toEpochMilli)
-  }
+  def makeKsqlObject(id: Int, value: Int, now: Instant, delaySeconds: Int = 0): KsqlObject =
+    new KsqlObject()
+      .put("id", id)
+      .put("v", value)
+      .put("ts", now.plusSeconds(delaySeconds).toEpochMilli)
 
   def tableSql(windowDef: String): String =
     s"""CREATE TABLE $tableName AS

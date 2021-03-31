@@ -31,8 +31,8 @@ class CubeSpec extends SpecBase {
   // casting within CUBE_EXPLODE is not supported
   // Received 400 response from server: line 3:30: no viable alternative at input 'array[ CAST(num)'. Error code: 40001
   "cube fails with scalar fields of different types" in {
-    val topicName          = "scalarCubeSource"
-    val streamName         = "scalarCubeSourceStream"
+    val topicName       = "scalarCubeSource"
+    val streamName      = "scalarCubeSourceStream"
     val cubedStreamName = "scalarCubeTargetStream"
 
     TestHelper.prepareTest(
@@ -66,14 +66,18 @@ class CubeSpec extends SpecBase {
          | ts
          | FROM $streamName;""".stripMargin
 
-    val ex: ExecutionException = intercept[ExecutionException]{ client.executeStatement(createCubeStreamSql).get }
+    val ex: ExecutionException = intercept[ExecutionException] {
+      client.executeStatement(createCubeStreamSql).get
+    }
     ex.getCause mustBe a[KsqlClientException]
-    ex.getMessage.contains("Cannot construct an array with mismatching types ([INTEGER, STRING]) from expression ARRAY[NUM, ITEM]") mustBe true
+    ex.getMessage.contains(
+      "Cannot construct an array with mismatching types ([INTEGER, STRING]) from expression ARRAY[NUM, ITEM]"
+    ) mustBe true
   }
 
   "cube with scalar string fields" in {
-    val topicName          = "scalarCubeSource"
-    val streamName         = "scalarCubeSourceStream"
+    val topicName       = "scalarCubeSource"
+    val streamName      = "scalarCubeSourceStream"
     val cubedStreamName = "scalarCubeTargetStream"
 
     TestHelper.prepareTest(
@@ -116,7 +120,7 @@ class CubeSpec extends SpecBase {
       setup.client.insertInto(streamName, ksqlObject).get()
     }
 
-    val querySql      = s"""SELECT *
+    val querySql               = s"""SELECT *
                            |FROM $cubedStreamName
                            |EMIT CHANGES;""".stripMargin
     val q: StreamedQueryResult = client.streamQuery(querySql).get()
@@ -138,8 +142,8 @@ class CubeSpec extends SpecBase {
 
   // existing tests do not cover cube_exploding arrays
   "cube with string arrays" in {
-    val topicName          = "arrayCubeSource"
-    val streamName         = "arrayCubeSourceStream"
+    val topicName       = "arrayCubeSource"
+    val streamName      = "arrayCubeSourceStream"
     val cubedStreamName = "arrayCubeTargetStream"
 
     TestHelper.prepareTest(
@@ -176,7 +180,7 @@ class CubeSpec extends SpecBase {
       setup.client.insertInto(streamName, ksqlObject).get()
     }
 
-    val querySql      = s"""SELECT *
+    val querySql               = s"""SELECT *
                            |FROM $cubedStreamName
                            |EMIT CHANGES;""".stripMargin
     val q: StreamedQueryResult = client.streamQuery(querySql).get()
@@ -197,17 +201,15 @@ class CubeSpec extends SpecBase {
     }
   }
 
-
-  def makeKsqlObjectScalar(idSuffix: Int): KsqlObject = {
+  def makeKsqlObjectScalar(idSuffix: Int): KsqlObject =
     new KsqlObject()
       .put("id", "id" + idSuffix.toString)
       .put("item", Random.alphanumeric.take(6).mkString)
       .put("name", Random.alphanumeric.take(4).mkString)
       .put("ts", System.currentTimeMillis())
-  }
 
   def makeKsqlObjectSingleArray(idSuffix: Int): KsqlObject = {
-    val list= List(
+    val list = List(
       Random.alphanumeric.take(6).mkString,
       Random.alphanumeric.take(2).mkString,
       Random.alphanumeric.take(2).mkString,

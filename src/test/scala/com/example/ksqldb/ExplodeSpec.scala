@@ -178,6 +178,7 @@ class ExplodeSpec extends SpecBase {
 
     (1 to 2) foreach { i =>
       val ksqlObject = makeKsqlObjectTwoArrays(i)
+      info("source event: " + ksqlObject)
       setup.client.insertInto(streamName, ksqlObject).get()
     }
 
@@ -195,8 +196,7 @@ class ExplodeSpec extends SpecBase {
 
   "explode and group" in {
 
-    val topicName = "startArrays"
-
+    val topicName          = "startArrays"
     val streamName         = "startArrayStream"
     val explodedStreamName = "explodedArrayStream"
     val evalStreamName     = "evalStream"
@@ -337,7 +337,6 @@ class ExplodeSpec extends SpecBase {
 
   def makeKsqlObjectTwoArrays(idSuffix: Int): KsqlObject = {
     val list = List(
-      Random.nextInt(100),
       Random.nextInt(100),
       Random.nextInt(100)
     )

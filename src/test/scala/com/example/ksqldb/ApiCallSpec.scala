@@ -1,16 +1,21 @@
 package com.example.ksqldb
 
-import com.example.ksqldb.TestData.{User, random}
+import com.example.ksqldb.TestData.{ User, random }
 import com.fasterxml.jackson.databind.JsonNode
 import io.circe.generic.auto._
-import io.confluent.ksql.api.client.{Client, ExecuteStatementResult, Row, StreamedQueryResult}
+import io.confluent.ksql.api.client.{ Client, ExecuteStatementResult, Row, StreamedQueryResult }
 import org.apache.kafka.clients.admin.AdminClient
-import org.apache.kafka.clients.consumer.{ConsumerConfig, ConsumerRecord, ConsumerRecords, KafkaConsumer}
+import org.apache.kafka.clients.consumer.{
+  ConsumerConfig,
+  ConsumerRecord,
+  ConsumerRecords,
+  KafkaConsumer
+}
 import org.apache.kafka.clients.producer.ProducerRecord
 import org.apache.kafka.common.TopicPartition
 import org.scalatest.freespec.AnyFreeSpec
 import org.scalatest.matchers.must.Matchers
-import org.scalatest.{BeforeAndAfterAll, BeforeAndAfterEach}
+import org.scalatest.{ BeforeAndAfterAll, BeforeAndAfterEach }
 import wvlet.log.LogSupport
 
 import java.time
@@ -66,8 +71,6 @@ class ApiCallSpec
        | building VARCHAR,
        | index VARCHAR >)
        |WITH (kafka_topic='$responseTopicName', value_format='json', partitions=1);""".stripMargin
-
-
 
   "request & response streams" in {
     prepareTest()
@@ -143,7 +146,11 @@ class ApiCallSpec
     userMap.get(userID)
   }
 
-  def produceUserDataRequests(userIds: Seq[String], topicName: String, bootstrapServer: String = setup.adminClientBootstrapServer): Unit = {
+  def produceUserDataRequests(
+      userIds: Seq[String],
+      topicName: String,
+      bootstrapServer: String = setup.adminClientBootstrapServer
+  ): Unit = {
     val requestProducer = JsonStringProducer[String, RequestMsg](
       bootstrapServers = bootstrapServer,
       topic = topicName,
@@ -151,7 +158,7 @@ class ApiCallSpec
     )
     val userDataRequests: Map[String, RequestMsg] = (userIds map (uid =>
       uid -> RequestMsg(Random.alphanumeric.take(10).mkString, uid, System.currentTimeMillis())
-      )).toMap
+    )).toMap
     val r: Iterable[ProducerRecord[String, String]] = requestProducer.makeRecords(userDataRequests)
     requestProducer.run(r)
   }

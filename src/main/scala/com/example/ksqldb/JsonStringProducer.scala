@@ -1,7 +1,12 @@
 package com.example.ksqldb
 
 import java.util.Properties
-import org.apache.kafka.clients.producer.{KafkaProducer, ProducerConfig, ProducerRecord, RecordMetadata}
+import org.apache.kafka.clients.producer.{
+  KafkaProducer,
+  ProducerConfig,
+  ProducerRecord,
+  RecordMetadata
+}
 import io.circe._
 import io.circe.syntax._
 import org.apache.kafka.common.serialization.StringSerializer
@@ -28,7 +33,7 @@ case class JsonStringProducer[K, V](
   val producer = new KafkaProducer[K, String](producerProperties)
 
   def makeRecords(recordMap: Iterable[(K, V)]): Iterable[ProducerRecord[K, String]] =
-    recordMap.map{case (k, v) => makeRecord(k, v)}
+    recordMap.map { case (k, v) => makeRecord(k, v) }
 
   def makeRecord(key: K, value: V): ProducerRecord[K, String] =
     new ProducerRecord[K, String](topic, key, value.asJson.noSpaces)

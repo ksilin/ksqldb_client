@@ -4,12 +4,7 @@ import java.time.Duration
 import java.util.Properties
 import com.example.ksqldb.TestData._
 import io.circe.generic.auto._
-import io.confluent.ksql.api.client.{
-  Client,
-  ExecuteStatementResult,
-  Row,
-  StreamedQueryResult
-}
+import io.confluent.ksql.api.client.{ Client, ExecuteStatementResult, Row, StreamedQueryResult }
 import org.apache.kafka.clients.admin.AdminClient
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.freespec.AnyFreeSpec
@@ -35,8 +30,8 @@ class KsqlDbJoinSpec
   loglevelProps.setProperty("org.apache.kafka", LogLevel.WARN.name)
   Logger.setLogLevels(loglevelProps)
 
-  val setup: LocalSetup = LocalSetup()
-  val client: Client = setup.client
+  val setup: LocalSetup        = LocalSetup()
+  val client: Client           = setup.client
   val adminClient: AdminClient = setup.adminClient
 
   val users: Seq[User]     = random[User](50).distinctBy(_.id).take(5)
@@ -52,11 +47,11 @@ class KsqlDbJoinSpec
   val leftJoinedStreamName             = "joinedStreamLeft"
   val innerJoinedStreamName            = "joinedStreamInner"
   val userClicksStreamToStreamJoinName = "userClickstreamStreamToStreamJoin"
-  val orderTopicName    = "orders"
-  val shipmentTopicName = "shipments"
-  val orderStreamName               = "orderStream"
-  val shipmentStreamName            = "shipmentStream"
-  val orderShipmentJoinedStreamName = "orderShipmentStream"
+  val orderTopicName                   = "orders"
+  val shipmentTopicName                = "shipments"
+  val orderStreamName                  = "orderStream"
+  val shipmentStreamName               = "shipmentStream"
+  val orderShipmentJoinedStreamName    = "orderShipmentStream"
 
   val now: Long                  = System.currentTimeMillis()
   val step                       = 10000
@@ -92,13 +87,7 @@ class KsqlDbJoinSpec
 
     val createUsersTableSql =
       s"""CREATE TABLE $userTableName (
-         | id VARCHAR PRIMARY KEY,
-         | name VARCHAR,
-         | address STRUCT <
-         | street VARCHAR,
-         | building VARCHAR,
-         | index VARCHAR
-         | >
+   ^
          | ) WITH (
          | KAFKA_TOPIC = '$userTopicName',
          | VALUE_FORMAT = 'JSON'
@@ -449,7 +438,8 @@ class KsqlDbJoinSpec
       TestHelper.makeRowObserver(prefix = "orderShipmentJoin").toReactive(scheduler)
     )
 
-    val orderProducer = JsonStringProducer[String, Order](setup.adminClientBootstrapServer, orderTopicName)
+    val orderProducer =
+      JsonStringProducer[String, Order](setup.adminClientBootstrapServer, orderTopicName)
 
     val shipmentProducer =
       JsonStringProducer[String, Shipment](setup.adminClientBootstrapServer, shipmentTopicName)
@@ -537,7 +527,8 @@ class KsqlDbJoinSpec
     TestHelper.createTopic(shipmentTopicName, adminClient)
 
     if (produceTestData) {
-      val orderProducer = JsonStringProducer[String, Order](setup.adminClientBootstrapServer, orderTopicName)
+      val orderProducer =
+        JsonStringProducer[String, Order](setup.adminClientBootstrapServer, orderTopicName)
       val orderRecords =
         orderProducer.makeRecords((ordersWithNewTimestamps map (d => d.id -> d)).toMap)
       orderProducer.run(orderRecords)

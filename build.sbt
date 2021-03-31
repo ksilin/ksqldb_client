@@ -21,6 +21,7 @@ lazy val ksqldb_client =
         library.monix,
         library.sttp,
         library.sttpBackendOkHttp,
+        library.sideEffectsProcessor,
         library.airframeLog,
         library.logback,
         library.wireMock % Test,
@@ -41,14 +42,14 @@ lazy val library =
 
     object Version {
       val kafka = "2.7.0"
-      val ksqlDb = "0.14.0"
-      val scalatest = "3.2.0"
-      val pureConfig = "0.14.0"
+      val ksqlDb = "0.15.0"
+      val scalatest = "3.2.6"
+      val pureConfig = "0.14.1"
       val betterFiles = "3.9.1"
       val kantan = "0.6.1"
       val circe = "0.13.0"
-      val sttp = "3.0.0-RC9"
-      val airframeLog = "20.12.1"
+      val sttp = "3.0.0"
+      val airframeLog = "21.3.1"
       val logback = "1.2.3"
     }
 
@@ -83,7 +84,7 @@ lazy val library =
 
 lazy val commonSettings =
   Seq(
-    scalaVersion := "2.13.3",
+    scalaVersion := "2.13.5",
     organization := "example.com",
     organizationName := "ksilin",
     startYear := Some(2020),
@@ -95,15 +96,20 @@ lazy val commonSettings =
       "-encoding", "UTF-8",
       "-Ywarn-unused:imports",
     ),
+    //javaOptions ++= Seq("--illegal-access=allow", "--add-opens", "java.base/java.util=ALL-UNNAMED"),
+
     // find latest repo here: https://docs.ksqldb.io/en/latest/developer-guide/ksqldb-clients/java-client/
     resolvers ++= Seq("confluent" at "https://packages.confluent.io/maven",
       "ksqlDb" at "https://ksqldb-maven.s3.amazonaws.com/maven",
       "confluentJenkins" at "https://jenkins-confluent-packages-beta-maven.s3.amazonaws.com/6.1.0-beta200715032424/1/maven/",
       "confluentJenkins2" at "https://jenkins-confluent-packages-beta-maven.s3.amazonaws.com/6.1.0-beta200916191548/1/maven/",
       "confluentJenkins3" at "https://jenkins-confluent-packages-beta-maven.s3.amazonaws.com/6.1.0-beta201006024150/1/maven/",
+      "confluentJenkins0.15" at "https://jenkins-confluent-packages-beta-maven.s3.amazonaws.com/6.2.0-beta201122193350-cp5/3/maven/",
       Resolver.sonatypeRepo("releases"),
       Resolver.bintrayRepo("wolfendale", "maven"),
       Resolver.mavenLocal
     ),
     scalafmtOnCompile := true,
+    fork in Test := true, // required for setting env vars
+    // envVars in Test := Map("RANDOM_DATA_GENERATOR_SEED" -> "9153932137467828920"),
   )

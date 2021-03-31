@@ -22,7 +22,7 @@ class KsqlDbInsertSpec
     with LogSupport {
 
   val setup: LocalSetup = LocalSetup()
-  val streamName = "toBeInsertedInto"
+  val streamName        = "toBeInsertedInto"
 
   override def beforeEach(): Unit =
     TestHelper.deleteStream(streamName, setup.client, setup.adminClient)

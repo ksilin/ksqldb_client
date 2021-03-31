@@ -23,12 +23,18 @@ import scala.collection.mutable
 
 object TestHelper extends LogSupport {
 
-
-  def prepareTest(streamsToDelete: List[String] = Nil, tablesToDelete: List[String] = Nil, topicsToDelete: List[String] = Nil, topicsToCreate: List[String] = Nil, client: Client, adminClient: AdminClient): Unit = {
+  def prepareTest(
+      streamsToDelete: List[String] = Nil,
+      tablesToDelete: List[String] = Nil,
+      topicsToDelete: List[String] = Nil,
+      topicsToCreate: List[String] = Nil,
+      client: Client,
+      adminClient: AdminClient
+  ): Unit = {
     streamsToDelete foreach { s => deleteStream(s, client, adminClient) }
-    tablesToDelete foreach {t => deleteTable(t, client)}
-    topicsToDelete ++ tablesToDelete.map(_.toUpperCase) foreach { t => deleteTopic(t, adminClient)}
-    topicsToCreate foreach { t => createTopic(t, adminClient)}
+    tablesToDelete foreach { t => deleteTable(t, client) }
+    topicsToDelete ++ tablesToDelete.map(_.toUpperCase) foreach { t => deleteTopic(t, adminClient) }
+    topicsToCreate foreach { t => createTopic(t, adminClient) }
   }
 
   def createTopic(
