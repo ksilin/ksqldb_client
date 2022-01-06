@@ -1,31 +1,15 @@
 package com.example.ksqldb
 
-import com.example.ksqldb.util.TestData.{ User, random }
-import com.example.ksqldb.util.{
-  CCloudClientProps,
-  CCloudSetup,
-  ClientProps,
-  KsqlConnectionSetup,
-  KsqlSpecHelper
-}
+import com.example.ksqldb.util.TestData.{User, random}
+import com.example.ksqldb.util.{CCloudClientProps, CCloudSetup, ClientProps, KsqlConnectionSetup, KsqlSpecHelper, RecordProcessor, SpecBase}
 import com.fasterxml.jackson.databind.JsonNode
 import io.circe.generic.auto._
-import io.confluent.ksql.api.client.{ Client, ExecuteStatementResult, Row, StreamedQueryResult }
+import io.confluent.ksql.api.client.{Client, ExecuteStatementResult, Row, StreamedQueryResult}
 import org.apache.kafka.clients.admin.AdminClient
-import org.apache.kafka.clients.consumer.{
-  ConsumerConfig,
-  ConsumerRecord,
-  ConsumerRecords,
-  KafkaConsumer
-}
-import org.apache.kafka.clients.producer.ProducerRecord
+import org.apache.kafka.clients.consumer.{ConsumerConfig, ConsumerRecord, KafkaConsumer}
+import org.apache.kafka.clients.producer.{ProducerConfig, ProducerRecord}
 import org.apache.kafka.common.TopicPartition
-import org.scalatest.freespec.AnyFreeSpec
-import org.scalatest.matchers.must.Matchers
-import org.scalatest.{ BeforeAndAfterAll, BeforeAndAfterEach }
-import wvlet.log.LogSupport
 
-import java.time
 import java.time.Duration
 import scala.jdk.CollectionConverters._
 import java.util.Properties
@@ -33,19 +17,12 @@ import scala.util.Random
 
 case class RequestMsg(id: String, userId: String, timestamp: Long)
 
-class ApiCallSpec
-    extends AnyFreeSpec
-    with Matchers
-    with BeforeAndAfterAll
-    with BeforeAndAfterEach
-    with FutureConverter
-    with LogSupport {
+class ApiCallSpec extends SpecBase {
 
   private val clientProps: ClientProps = CCloudClientProps.create(configPath = Some("ccloud.stag"))
-  println(s"props: $clientProps")
   private val setup: KsqlConnectionSetup =
     CCloudSetup(ksqlHost = "localhost", ksqlDbPort = 8088, clientProps)
-  private val client: Client           = setup.client
+  private val ksqlClient: Client           = setup.client
   private val adminClient: AdminClient = setup.adminClient
   private val pollTimeout: Duration    = Duration.ofMillis(1000)
 
@@ -54,7 +31,7 @@ class ApiCallSpec
   val userMap: Map[String, User] = (users map (d => d.id -> d)).toMap
 
   override def afterAll(): Unit = {
-    client.close()
+    ksqlClient.close()
     super.afterAll()
   }
 
@@ -87,7 +64,7 @@ class ApiCallSpec
 
     // query the response stream
     val queryResponseStreamSql = s"""SELECT * FROM $responseStreamName EMIT CHANGES;"""
-    val q: StreamedQueryResult = client.streamQuery(queryResponseStreamSql).get
+    val q: StreamedQueryResult = ksqlClient.streamQuery(queryResponseStreamSql).get
 
     val requestConsumer = createRequestConsumer
     requestConsumer.assign(List(new TopicPartition(requestsTopicName, 0)).asJava)
@@ -99,38 +76,12 @@ class ApiCallSpec
       topic = responseTopicName,
       clientId = "responseProducer"
     )
-    fetchAndProcessRecords[JsonNode](requestConsumer, processRecord(responseProducer))
+    RecordProcessor.fetchAndProcessRecords[String, JsonNode](requestConsumer, processRecord(responseProducer))
 
     // fetch data from response stream
     (1 to userIds.size) foreach { _ =>
       val row: Row = q.poll(pollTimeout)
       println(row)
-    }
-  }
-
-  def fetchAndProcessRecords[T](
-      consumer: KafkaConsumer[String, T],
-      process: ConsumerRecord[String, T] => Any = { r: ConsumerRecord[String, T] =>
-        info(r.value())
-      },
-      duration: time.Duration = java.time.Duration.ofMillis(100),
-      maxAttempts: Int = 100
-  ): Unit = {
-    var done     = false
-    var attempts = 0
-    while (!done && attempts < maxAttempts) {
-      val records: ConsumerRecords[String, T] = consumer.poll(duration)
-      attempts = attempts + 1
-      done = !records.isEmpty
-      if (done) {
-        info(s"fetched ${records.count()} records on attempt $attempts")
-        records.asScala map { r: ConsumerRecord[String, T] =>
-          process(r)
-        }
-      }
-    }
-    if (attempts >= maxAttempts) {
-      warn(s"${maxAttempts} retries exhausted")
     }
   }
 
@@ -142,14 +93,14 @@ class ApiCallSpec
     val userId = r.value().get("userId").asText("FALLBACK_ID")
     info(s"fetching user with id: $userId")
 
-    callAPI(userId).fold(warn(s"no user found for id $userId")) { u: User =>
-      info(s"user found: ${u}")
+    fakeAPICall(userId).fold(warn(s"no user found for id $userId")) { u: User =>
+      info(s"user found: $u")
       val record: ProducerRecord[String, String] = responseProducer.makeRecord(userId, u)
       responseProducer.run(record)
     }
   }
 
-  def callAPI(userID: String): Option[User] = {
+  def fakeAPICall(userID: String): Option[User] = {
     val responseDelay = Random.nextInt(1000)
     info(s"API response delay $responseDelay")
     Thread.sleep(responseDelay)
@@ -174,7 +125,6 @@ class ApiCallSpec
   }
 
   def createRequestConsumer: KafkaConsumer[String, JsonNode] = {
-    println(s"setup common props: ${setup.commonProps}")
     val consumerProperties = new Properties()
     consumerProperties.putAll(setup.commonProps)
     consumerProperties.put(
@@ -188,25 +138,25 @@ class ApiCallSpec
     )
     consumerProperties.put(ConsumerConfig.GROUP_ID_CONFIG, "requestConsumer")
 
-    println(s"consumer props: $consumerProperties")
-
     new KafkaConsumer[String, JsonNode](consumerProperties)
   }
 
   def prepareTest(): ExecuteStatementResult = {
+
+    val bootstrapServer: String = setup.commonProps.get(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG).toString
+    val rf: Short = if(bootstrapServer.contains("cloud")) 3 else 1
+
     KsqlSpecHelper.prepareTest(
       streamsToDelete = List(requestsStreamName, responseStreamName),
       topicsToDelete = List(requestsTopicName, responseTopicName),
       topicsToCreate = List(requestsTopicName, responseTopicName),
-      client = client,
+      client = ksqlClient,
       adminClient = adminClient,
-      numberOfPartitions = 1,
-      replicationFactor = 3 // TODO - make contingent on CCloud or local setup
+      replicationFactor = rf
     )
-
     // create request & response streams
-    client.executeStatement(createRequestStreamSql).get
-    client.executeStatement(createResponseStreamSql).get
+    ksqlClient.executeStatement(createRequestStreamSql).get
+    ksqlClient.executeStatement(createResponseStreamSql).get
   }
 
 }
