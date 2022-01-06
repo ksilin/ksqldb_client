@@ -1,5 +1,6 @@
 package com.example.ksqldb
 
+import com.example.ksqldb.util.{KsqlSpecHelper, LocalSetup, SpecBase}
 import io.confluent.ksql.api.client._
 import io.confluent.ksql.api.client.exception.KsqlClientException
 import org.apache.kafka.clients.admin.AdminClient
@@ -35,7 +36,7 @@ class CubeSpec extends SpecBase {
     val streamName      = "scalarCubeSourceStream"
     val cubedStreamName = "scalarCubeTargetStream"
 
-    TestHelper.prepareTest(
+    KsqlSpecHelper.prepareTest(
       streamsToDelete = List(streamName, cubedStreamName),
       topicsToCreate = List(topicName),
       client = client,
@@ -80,7 +81,7 @@ class CubeSpec extends SpecBase {
     val streamName      = "scalarCubeSourceStream"
     val cubedStreamName = "scalarCubeTargetStream"
 
-    TestHelper.prepareTest(
+    KsqlSpecHelper.prepareTest(
       streamsToDelete = List(streamName, cubedStreamName),
       topicsToCreate = List(topicName),
       client = client,
@@ -146,7 +147,7 @@ class CubeSpec extends SpecBase {
     val streamName      = "arrayCubeSourceStream"
     val cubedStreamName = "arrayCubeTargetStream"
 
-    TestHelper.prepareTest(
+    KsqlSpecHelper.prepareTest(
       streamsToDelete = List(streamName, cubedStreamName),
       topicsToCreate = List(topicName),
       client = client,

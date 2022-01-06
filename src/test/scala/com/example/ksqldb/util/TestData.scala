@@ -1,5 +1,8 @@
-package com.example.ksqldb
+package com.example.ksqldb.util
 
+import com.danielasfregola.randomdatagenerator.RandomDataGenerator
+import faker.{ address, internet, name, pokemon }
+import org.scalacheck.{ Arbitrary, Gen }
 import com.danielasfregola.randomdatagenerator.RandomDataGenerator
 import org.scalacheck._
 import faker._

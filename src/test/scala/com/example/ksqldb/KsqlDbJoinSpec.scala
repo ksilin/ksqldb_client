@@ -2,16 +2,17 @@ package com.example.ksqldb
 
 import java.time.Duration
 import java.util.Properties
-import com.example.ksqldb.TestData._
+import com.example.ksqldb.util.TestData._
+import com.example.ksqldb.util.{EnvVarUtil, KsqlSpecHelper, LocalSetup}
 import io.circe.generic.auto._
-import io.confluent.ksql.api.client.{ Client, ExecuteStatementResult, Row, StreamedQueryResult }
+import io.confluent.ksql.api.client.{Client, ExecuteStatementResult, Row, StreamedQueryResult}
 import org.apache.kafka.clients.admin.AdminClient
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.freespec.AnyFreeSpec
 import org.scalatest.matchers.must.Matchers
-import monix.execution.Scheduler.{ global => scheduler }
+import monix.execution.Scheduler.{global => scheduler}
 import org.scalacheck.Arbitrary
-import wvlet.log.{ LogLevel, LogSupport, Logger }
+import wvlet.log.{LogLevel, LogSupport, Logger}
 
 import scala.jdk.CollectionConverters._
 import scala.util.Random
@@ -119,7 +120,7 @@ class KsqlDbJoinSpec
 
     val leftJoinedQuerySql                = s"SELECT * FROM $leftJoinedStreamName EMIT CHANGES;"
     val queryCreated: StreamedQueryResult = client.streamQuery(leftJoinedQuerySql).get
-    queryCreated.subscribe(TestHelper.makeRowObserver("leftJoin").toReactive(scheduler))
+    queryCreated.subscribe(KsqlSpecHelper.makeRowObserver("leftJoin").toReactive(scheduler))
 
     // inner join -> no nulls
     val innerJoinedStreamSql =
@@ -144,7 +145,7 @@ class KsqlDbJoinSpec
 
     val innerJoinedQuerySql                    = s"SELECT * FROM $innerJoinedStreamName EMIT CHANGES;"
     val queryCreatedInner: StreamedQueryResult = client.streamQuery(innerJoinedQuerySql).get
-    queryCreatedInner.subscribe(TestHelper.makeRowObserver("innerJoin").toReactive(scheduler))
+    queryCreatedInner.subscribe(KsqlSpecHelper.makeRowObserver("innerJoin").toReactive(scheduler))
 
     Thread.sleep(1000)
   }
@@ -190,16 +191,16 @@ class KsqlDbJoinSpec
 
     val joinedQuerySql                    = s"SELECT * FROM $leftJoinedStreamName EMIT CHANGES;"
     val queryCreated: StreamedQueryResult = client.streamQuery(joinedQuerySql).get
-    queryCreated.subscribe(TestHelper.makeRowObserver("leftJoin").toReactive(scheduler))
+    queryCreated.subscribe(KsqlSpecHelper.makeRowObserver("leftJoin").toReactive(scheduler))
 
     // produce test data
     val userProducer = JsonStringProducer[String, User](
-      setup.adminClientBootstrapServer,
+      setup.commonProps,
       userTopicName,
       "userProducer" + Random.alphanumeric.take(10).mkString
     )
     val clickProducer = JsonStringProducer[String, Click](
-      setup.adminClientBootstrapServer,
+      setup.commonProps,
       clickTopicName,
       "clickProducer" + Random.alphanumeric.take(10).mkString
     )
@@ -314,7 +315,7 @@ class KsqlDbJoinSpec
     }
 
     queryCreatedInner.subscribe(
-      TestHelper
+      KsqlSpecHelper
         .makeRowObserver(prefix = "streamStreamJoin", nextPlugin = Some(alertOnNullName))
         .toReactive(scheduler)
     )
@@ -363,7 +364,7 @@ class KsqlDbJoinSpec
     }
     // all orders have no shipments
     joinedStreamQuery.subscribe(
-      TestHelper.makeRowObserver(prefix = "orderShipmentJoin").toReactive(scheduler)
+      KsqlSpecHelper.makeRowObserver(prefix = "orderShipmentJoin").toReactive(scheduler)
     )
     Thread.sleep(1000)
   }
@@ -398,7 +399,7 @@ class KsqlDbJoinSpec
     info(joinedStreamCreated)
 
     joinedStreamQuery.subscribe(
-      TestHelper.makeRowObserver(prefix = "orderShipmentJoin").toReactive(scheduler)
+      KsqlSpecHelper.makeRowObserver(prefix = "orderShipmentJoin").toReactive(scheduler)
     )
     Thread.sleep(1000)
   }
@@ -435,14 +436,14 @@ class KsqlDbJoinSpec
     info(joinedStreamCreated)
 
     joinedStreamQuery.subscribe(
-      TestHelper.makeRowObserver(prefix = "orderShipmentJoin").toReactive(scheduler)
+      KsqlSpecHelper.makeRowObserver(prefix = "orderShipmentJoin").toReactive(scheduler)
     )
 
     val orderProducer =
-      JsonStringProducer[String, Order](setup.adminClientBootstrapServer, orderTopicName)
+      JsonStringProducer[String, Order](setup.commonProps, orderTopicName)
 
     val shipmentProducer =
-      JsonStringProducer[String, Shipment](setup.adminClientBootstrapServer, shipmentTopicName)
+      JsonStringProducer[String, Shipment](setup.commonProps, shipmentTopicName)
 
     val now: Long = System.currentTimeMillis()
 
@@ -475,22 +476,22 @@ class KsqlDbJoinSpec
   }
 
   def prepareClicksAndUsers(produceTestData: Boolean = true): Unit = {
-    TestHelper.deleteTable(userTableName, client)
-    TestHelper.deleteStream(clickStreamName, client, adminClient)
-    TestHelper.deleteStream(leftJoinedStreamName, client, adminClient)
-    TestHelper.deleteStream(innerJoinedStreamName, client, adminClient)
-    TestHelper.deleteStream(userStreamName, client, adminClient)
-    TestHelper.deleteStream(userClicksStreamToStreamJoinName, client, adminClient)
+    KsqlSpecHelper.deleteTable(userTableName, client)
+    KsqlSpecHelper.deleteStream(clickStreamName, client, adminClient)
+    KsqlSpecHelper.deleteStream(leftJoinedStreamName, client, adminClient)
+    KsqlSpecHelper.deleteStream(innerJoinedStreamName, client, adminClient)
+    KsqlSpecHelper.deleteStream(userStreamName, client, adminClient)
+    KsqlSpecHelper.deleteStream(userClicksStreamToStreamJoinName, client, adminClient)
 
-    TestHelper.deleteTopic(clickTopicName, adminClient)
-    TestHelper.deleteTopic(userTopicName, adminClient)
+    KsqlSpecHelper.deleteTopic(clickTopicName, adminClient)
+    KsqlSpecHelper.deleteTopic(userTopicName, adminClient)
 
-    TestHelper.createTopic(clickTopicName, adminClient)
-    TestHelper.createTopic(userTopicName, adminClient)
+    KsqlSpecHelper.createTopic(clickTopicName, adminClient)
+    KsqlSpecHelper.createTopic(userTopicName, adminClient)
 
     if (produceTestData) {
       val userProducer = JsonStringProducer[String, User](
-        setup.adminClientBootstrapServer,
+        setup.commonProps,
         userTopicName,
         "userProducer" + Random.alphanumeric.take(10).mkString
       )
@@ -498,7 +499,7 @@ class KsqlDbJoinSpec
       userProducer.run(userRecords)
 
       val clickProducer = JsonStringProducer[String, Click](
-        setup.adminClientBootstrapServer,
+        setup.commonProps,
         clickTopicName,
         "clickProducer" + Random.alphanumeric.take(10).mkString
       )
@@ -516,25 +517,25 @@ class KsqlDbJoinSpec
 
   def prepareOrdersAndShipments(produceTestData: Boolean = true): Unit = {
 
-    TestHelper.deleteStream(orderStreamName, client, adminClient)
-    TestHelper.deleteStream(shipmentStreamName, client, adminClient)
-    TestHelper.deleteStream(orderShipmentJoinedStreamName, client, adminClient)
+    KsqlSpecHelper.deleteStream(orderStreamName, client, adminClient)
+    KsqlSpecHelper.deleteStream(shipmentStreamName, client, adminClient)
+    KsqlSpecHelper.deleteStream(orderShipmentJoinedStreamName, client, adminClient)
 
-    TestHelper.deleteTopic(orderTopicName, adminClient)
-    TestHelper.deleteTopic(shipmentTopicName, adminClient)
+    KsqlSpecHelper.deleteTopic(orderTopicName, adminClient)
+    KsqlSpecHelper.deleteTopic(shipmentTopicName, adminClient)
 
-    TestHelper.createTopic(orderTopicName, adminClient)
-    TestHelper.createTopic(shipmentTopicName, adminClient)
+    KsqlSpecHelper.createTopic(orderTopicName, adminClient)
+    KsqlSpecHelper.createTopic(shipmentTopicName, adminClient)
 
     if (produceTestData) {
       val orderProducer =
-        JsonStringProducer[String, Order](setup.adminClientBootstrapServer, orderTopicName)
+        JsonStringProducer[String, Order](setup.commonProps, orderTopicName)
       val orderRecords =
         orderProducer.makeRecords((ordersWithNewTimestamps map (d => d.id -> d)).toMap)
       orderProducer.run(orderRecords)
 
       val shipmentProducer =
-        JsonStringProducer[String, Shipment](setup.adminClientBootstrapServer, shipmentTopicName)
+        JsonStringProducer[String, Shipment](setup.commonProps, shipmentTopicName)
       val shipmentRecords =
         shipmentProducer.makeRecords((shipmentsWithNewTimestamps map (d => d.id -> d)).toMap)
       shipmentProducer.run(shipmentRecords)

@@ -13,15 +13,15 @@ import org.apache.kafka.common.serialization.StringSerializer
 import wvlet.log.LogSupport
 
 case class JsonStringProducer[K, V](
-    bootstrapServers: String = "localhost:9092",
+    clientProperties: Properties,
     topic: String = "testTopic",
     clientId: String = "JsonStringProducer"
 )(implicit e: Encoder[V])
     extends LogSupport {
 
   val producerProperties = new Properties()
+  producerProperties.putAll(clientProperties)
   producerProperties.put(ProducerConfig.ACKS_CONFIG, "all")
-  producerProperties.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers)
   producerProperties.put(ProducerConfig.ENABLE_IDEMPOTENCE_CONFIG, "true")
   producerProperties.put(
     ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG,

@@ -1,6 +1,13 @@
 package com.example.ksqldb
 
-import com.example.ksqldb.TestData.{ User, random }
+import com.example.ksqldb.util.TestData.{ User, random }
+import com.example.ksqldb.util.{
+  CCloudClientProps,
+  CCloudSetup,
+  ClientProps,
+  KsqlConnectionSetup,
+  KsqlSpecHelper
+}
 import com.fasterxml.jackson.databind.JsonNode
 import io.circe.generic.auto._
 import io.confluent.ksql.api.client.{ Client, ExecuteStatementResult, Row, StreamedQueryResult }
@@ -34,7 +41,10 @@ class ApiCallSpec
     with FutureConverter
     with LogSupport {
 
-  private val setup: LocalSetup        = LocalSetup()
+  private val clientProps: ClientProps = CCloudClientProps.create(configPath = Some("ccloud.stag"))
+  println(s"props: $clientProps")
+  private val setup: KsqlConnectionSetup =
+    CCloudSetup(ksqlHost = "localhost", ksqlDbPort = 8088, clientProps)
   private val client: Client           = setup.client
   private val adminClient: AdminClient = setup.adminClient
   private val pollTimeout: Duration    = Duration.ofMillis(1000)
@@ -85,7 +95,7 @@ class ApiCallSpec
     produceUserDataRequests(userIds, requestsTopicName)
 
     val responseProducer = JsonStringProducer[String, User](
-      bootstrapServers = setup.adminClientBootstrapServer,
+      clientProperties = setup.commonProps,
       topic = responseTopicName,
       clientId = "responseProducer"
     )
@@ -149,10 +159,10 @@ class ApiCallSpec
   def produceUserDataRequests(
       userIds: Seq[String],
       topicName: String,
-      bootstrapServer: String = setup.adminClientBootstrapServer
+      commonProps: Properties = setup.commonProps
   ): Unit = {
     val requestProducer = JsonStringProducer[String, RequestMsg](
-      bootstrapServers = bootstrapServer,
+      clientProperties = commonProps,
       topic = topicName,
       clientId = "requestProducer"
     )
@@ -164,28 +174,34 @@ class ApiCallSpec
   }
 
   def createRequestConsumer: KafkaConsumer[String, JsonNode] = {
-    val properties = new Properties()
-    properties.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, setup.adminClientBootstrapServer)
-    properties.put(
+    println(s"setup common props: ${setup.commonProps}")
+    val consumerProperties = new Properties()
+    consumerProperties.putAll(setup.commonProps)
+    consumerProperties.put(
       ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG,
       "org.apache.kafka.common.serialization.StringDeserializer"
     )
-    properties.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest")
-    properties.put(
+    consumerProperties.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest")
+    consumerProperties.put(
       ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG,
       "org.apache.kafka.connect.json.JsonDeserializer"
     )
-    properties.put(ConsumerConfig.GROUP_ID_CONFIG, "requestConsumer")
-    new KafkaConsumer[String, JsonNode](properties)
+    consumerProperties.put(ConsumerConfig.GROUP_ID_CONFIG, "requestConsumer")
+
+    println(s"consumer props: $consumerProperties")
+
+    new KafkaConsumer[String, JsonNode](consumerProperties)
   }
 
   def prepareTest(): ExecuteStatementResult = {
-    TestHelper.prepareTest(
+    KsqlSpecHelper.prepareTest(
       streamsToDelete = List(requestsStreamName, responseStreamName),
       topicsToDelete = List(requestsTopicName, responseTopicName),
       topicsToCreate = List(requestsTopicName, responseTopicName),
       client = client,
-      adminClient = adminClient
+      adminClient = adminClient,
+      numberOfPartitions = 1,
+      replicationFactor = 3 // TODO - make contingent on CCloud or local setup
     )
 
     // create request & response streams

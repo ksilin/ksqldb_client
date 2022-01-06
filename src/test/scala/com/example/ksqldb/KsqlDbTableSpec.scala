@@ -1,14 +1,15 @@
 package com.example.ksqldb
 
+import com.example.ksqldb.util.KsqlSpecHelper
+
 import java.util
 import java.util.Properties
 import java.util.concurrent.ExecutionException
-
-import com.example.ksqldb.TestData._
+import com.example.ksqldb.util.TestData._
 import io.circe.generic.auto._
 import io.confluent.ksql.api.client.exception.KsqlClientException
-import io.confluent.ksql.api.client.{ Client, ClientOptions, ExecuteStatementResult, Row }
-import org.apache.kafka.clients.admin.{ AdminClient, AdminClientConfig }
+import io.confluent.ksql.api.client.{Client, ClientOptions, ExecuteStatementResult, Row}
+import org.apache.kafka.clients.admin.{AdminClient, AdminClientConfig}
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.freespec.AnyFreeSpec
 import org.scalatest.matchers.must.Matchers
@@ -62,16 +63,16 @@ class KsqlDbTableSpec extends AnyFreeSpec with Matchers with BeforeAndAfterAll {
 //
 //    TestHelper.deleteStream(orderStreamName, client, adminClient)
 
-    TestHelper.createTopic(userTopicName, adminClient, 1, 1)
-    TestHelper.createTopic(productTopicName, adminClient, 1, 1)
-    TestHelper.createTopic(orderTopicName, adminClient, 1, 1)
+    KsqlSpecHelper.createTopic(userTopicName, adminClient, 1, 1)
+    KsqlSpecHelper.createTopic(productTopicName, adminClient, 1, 1)
+    KsqlSpecHelper.createTopic(orderTopicName, adminClient, 1, 1)
 
-    val userProducer = JsonStringProducer[String, User](adminBootstrapServers, userTopicName)
+    val userProducer = JsonStringProducer[String, User](adminClientProps, userTopicName)
     val userRecords  = userProducer.makeRecords((users map (d => d.id -> d)).toMap)
     userProducer.run(userRecords)
 
     val productProducer =
-      JsonStringProducer[String, Product](adminBootstrapServers, productTopicName)
+      JsonStringProducer[String, Product](adminClientProps, productTopicName)
     val productRecords = productProducer.makeRecords((products map (d => d.id -> d)).toMap)
     productProducer.run(productRecords)
 
@@ -90,7 +91,7 @@ class KsqlDbTableSpec extends AnyFreeSpec with Matchers with BeforeAndAfterAll {
   "create test products" in {
 
     val productProducer2 =
-      JsonStringProducer[String, Product](adminBootstrapServers, productTopicName)
+      JsonStringProducer[String, Product](adminClientProps, productTopicName)
     val productRecords2 = productProducer2.makeRecords((products map (d => d.id -> d)).toMap)
     productProducer2.run(productRecords2)
   }

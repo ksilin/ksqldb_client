@@ -1,7 +1,9 @@
 package com.example.ksqldb
 
-import io.confluent.ksql.api.client.{ Client, KsqlArray, KsqlObject, Row, StreamedQueryResult }
+import com.example.ksqldb.util.{KsqlSpecHelper, LocalSetup, SpecBase}
+import io.confluent.ksql.api.client.{Client, KsqlArray, KsqlObject, Row, StreamedQueryResult}
 import org.apache.kafka.clients.admin.AdminClient
+
 import java.time.Duration
 import scala.jdk.CollectionConverters._
 import scala.util.Random
@@ -25,7 +27,7 @@ class ExplodeSpec extends SpecBase {
     val streamName         = "preExplodeStream"
     val explodedStreamName = "simpleExplodedStream"
 
-    TestHelper.prepareTest(
+    KsqlSpecHelper.prepareTest(
       streamsToDelete = List(streamName, explodedStreamName),
       topicsToCreate = List(topicName),
       client = client,
@@ -74,7 +76,7 @@ class ExplodeSpec extends SpecBase {
     val streamName         = "preStructExplodeStream"
     val explodedStreamName = "structExplodedStream"
 
-    TestHelper.prepareTest(
+    KsqlSpecHelper.prepareTest(
       streamsToDelete = List(streamName, explodedStreamName),
       topicsToCreate = List(topicName),
       client = client,
@@ -147,7 +149,7 @@ class ExplodeSpec extends SpecBase {
     val streamName         = "preMultiExplodeStream"
     val explodedStreamName = "multiExplodedStream"
 
-    TestHelper.prepareTest(
+    KsqlSpecHelper.prepareTest(
       streamsToDelete = List(streamName, explodedStreamName),
       topicsToCreate = List(topicName),
       client = client,
@@ -205,7 +207,7 @@ class ExplodeSpec extends SpecBase {
     val splitTable1Name  = "splitTable1"
     val splitTable2Name  = "splitTable2"
 
-    TestHelper.prepareTest(
+    KsqlSpecHelper.prepareTest(
       streamsToDelete = List(streamName, explodedStreamName, evalStreamName),
       tablesToDelete = List(collectTableName, splitTable1Name, splitTable2Name),
       topicsToCreate = List(topicName),

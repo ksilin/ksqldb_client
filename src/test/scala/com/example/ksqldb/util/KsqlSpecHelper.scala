@@ -1,16 +1,6 @@
-package com.example.ksqldb
+package com.example.ksqldb.util
 
-import java.io.PrintStream
-import java.util.Collections
-import io.confluent.ksql.api.client.{
-  Client,
-  ExecuteStatementResult,
-  QueryInfo,
-  Row,
-  SourceDescription,
-  StreamInfo,
-  TableInfo
-}
+import io.confluent.ksql.api.client._
 import monix.execution.Ack
 import monix.execution.Ack.Continue
 import monix.reactive.Observer
@@ -18,10 +8,12 @@ import org.apache.kafka.clients.admin.{ AdminClient, CreateTopicsResult, NewTopi
 import org.apache.kafka.common.config.TopicConfig
 import wvlet.log.LogSupport
 
-import scala.jdk.CollectionConverters._
+import java.io.PrintStream
+import java.util.Collections
 import scala.collection.mutable
+import scala.jdk.CollectionConverters._
 
-object TestHelper extends LogSupport {
+object KsqlSpecHelper extends LogSupport {
 
   def prepareTest(
       streamsToDelete: List[String] = Nil,
@@ -29,12 +21,14 @@ object TestHelper extends LogSupport {
       topicsToDelete: List[String] = Nil,
       topicsToCreate: List[String] = Nil,
       client: Client,
-      adminClient: AdminClient
+      adminClient: AdminClient,
+      numberOfPartitions: Int = 1,
+      replicationFactor: Short = 1
   ): Unit = {
     streamsToDelete foreach { s => deleteStream(s, client, adminClient) }
     tablesToDelete foreach { t => deleteTable(t, client) }
     topicsToDelete ++ tablesToDelete.map(_.toUpperCase) foreach { t => deleteTopic(t, adminClient) }
-    topicsToCreate foreach { t => createTopic(t, adminClient) }
+    topicsToCreate foreach { t => createTopic(t, adminClient, numberOfPartitions, replicationFactor) }
   }
 
   def createTopic(

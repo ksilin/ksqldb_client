@@ -1,10 +1,11 @@
 package com.example.ksqldb
 
-import io.confluent.ksql.api.client.{ Client, KsqlObject, StreamedQueryResult }
+import com.example.ksqldb.util.{KsqlSpecHelper, LocalSetup, SpecBase}
+import io.confluent.ksql.api.client.{Client, KsqlObject, StreamedQueryResult}
 import org.apache.kafka.clients.admin.AdminClient
 
 import java.time.Instant
-import monix.execution.Scheduler.{ global => scheduler }
+import monix.execution.Scheduler.{global => scheduler}
 import monix.reactive.Observable
 import org.reactivestreams.Publisher
 import org.scalatest.BeforeAndAfterEach
@@ -24,7 +25,7 @@ class LateAndOutOfOrderSpec extends SpecBase with BeforeAndAfterEach {
   }
 
   override def beforeEach(): Unit = {
-    TestHelper.prepareTest(
+    KsqlSpecHelper.prepareTest(
       streamsToDelete = List(sourceStreamName),
       tablesToDelete = List(tableName),
       topicsToCreate = List(sourceTopicName),
@@ -50,7 +51,7 @@ class LateAndOutOfOrderSpec extends SpecBase with BeforeAndAfterEach {
 
     val tableQuerySql          = s"SELECT * FROM $tableName EMIT CHANGES;"
     val q: StreamedQueryResult = client.streamQuery(tableQuerySql).get
-    q.subscribe(TestHelper.makeRowObserver("windowed").toReactive(scheduler))
+    q.subscribe(KsqlSpecHelper.makeRowObserver("windowed").toReactive(scheduler))
 
     val now             = Instant.now().truncatedTo(ChronoUnit.MINUTES)
     val startEvent      = makeKsqlObject(1, 10, now, 0)
@@ -75,7 +76,7 @@ class LateAndOutOfOrderSpec extends SpecBase with BeforeAndAfterEach {
 
     val tableQuerySql          = s"SELECT * FROM $tableName EMIT CHANGES;"
     val q: StreamedQueryResult = client.streamQuery(tableQuerySql).get
-    q.subscribe(TestHelper.makeRowObserver("windowed").toReactive(scheduler))
+    q.subscribe(KsqlSpecHelper.makeRowObserver("windowed").toReactive(scheduler))
 
     val now             = Instant.now().truncatedTo(ChronoUnit.MINUTES)
     val startEvent      = makeKsqlObject(1, 10, now, 0)

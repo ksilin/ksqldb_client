@@ -3,32 +3,23 @@ package com.example.ksqldb
 import java.util
 import java.util.Properties
 import java.util.concurrent.CompletableFuture
-
-import io.confluent.ksql.api.client.{
-  Client,
-  ClientOptions,
-  ExecuteStatementResult,
-  KsqlObject,
-  Row,
-  SourceDescription,
-  StreamInfo,
-  StreamedQueryResult
-}
+import io.confluent.ksql.api.client.{Client, ClientOptions, ExecuteStatementResult, KsqlObject, Row, SourceDescription, StreamInfo, StreamedQueryResult}
 import org.scalatest.freespec.AnyFreeSpec
 import org.scalatest.matchers.must.Matchers
-import java.time.Duration
 
+import java.time.Duration
 import scala.jdk.DurationConverters._
 import scala.jdk.CollectionConverters._
 import better.files._
-import java.io.InputStream
 
+import java.io.InputStream
 import com.example.ksqldb.CsvTypes.RiderLocation
-import com.example.ksqldb.TestHelper.printSourceDescription
+import com.example.ksqldb.util.KsqlSpecHelper
+import com.example.ksqldb.util.KsqlSpecHelper.printSourceDescription
 import kantan.csv._
 import kantan.csv.ops._
 import kantan.csv.generic._
-import org.apache.kafka.clients.admin.{ AdminClient, AdminClientConfig }
+import org.apache.kafka.clients.admin.{AdminClient, AdminClientConfig}
 import org.scalatest.BeforeAndAfterAll
 
 import scala.collection.mutable
@@ -59,8 +50,8 @@ class KsqlDbLocalQuickstartSpec
 
   override def beforeAll(): Unit = {
     // streams created as SELECT must be stopped before removal
-    TestHelper.deleteStream(streamName, client, adminClient)
-    TestHelper.deleteTable(tableName, client)
+    KsqlSpecHelper.deleteStream(streamName, client, adminClient)
+    KsqlSpecHelper.deleteTable(tableName, client)
   }
 
   override def afterAll(): Unit = {

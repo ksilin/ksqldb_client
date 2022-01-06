@@ -1,4 +1,4 @@
-package com.example.ksqldb
+package com.example.ksqldb.util
 
 object EnvVarUtil {
 

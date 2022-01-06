@@ -1,10 +1,11 @@
 package com.example.ksqldb
 
-import io.confluent.ksql.api.client.{ ExecuteStatementResult, KsqlObject, StreamedQueryResult }
-import org.scalatest.{ BeforeAndAfterAll, BeforeAndAfterEach }
+import com.example.ksqldb.util.{KsqlSpecHelper, LocalSetup}
+import io.confluent.ksql.api.client.{ExecuteStatementResult, KsqlObject, StreamedQueryResult}
+import org.scalatest.{BeforeAndAfterAll, BeforeAndAfterEach}
 import org.scalatest.freespec.AnyFreeSpec
 import org.scalatest.matchers.must.Matchers
-import monix.execution.Scheduler.{ global => scheduler }
+import monix.execution.Scheduler.{global => scheduler}
 import monix.reactive.Observable
 import org.reactivestreams.Publisher
 import wvlet.log.LogSupport
@@ -25,7 +26,7 @@ class KsqlDbInsertSpec
   val streamName        = "toBeInsertedInto"
 
   override def beforeEach(): Unit =
-    TestHelper.deleteStream(streamName, setup.client, setup.adminClient)
+    KsqlSpecHelper.deleteStream(streamName, setup.client, setup.adminClient)
 
   override def afterAll(): Unit = {
     setup.client.close()
@@ -53,7 +54,7 @@ class KsqlDbInsertSpec
     val pushQuery: StreamedQueryResult =
       setup.client.streamQuery(selectUnder6PushQuery).get
 
-    pushQuery.subscribe(TestHelper.makeRowObserver("insert test: ").toReactive(scheduler))
+    pushQuery.subscribe(KsqlSpecHelper.makeRowObserver("insert test: ").toReactive(scheduler))
 
     val ids = (1 to 10).toList
     Future.traverse(ids) { i: Int =>
@@ -81,7 +82,7 @@ class KsqlDbInsertSpec
     val pushQuery: StreamedQueryResult =
       setup.client.streamQuery(selectUnder6PushQuery).get
 
-    pushQuery.subscribe(TestHelper.makeRowObserver("insert test: ").toReactive(scheduler))
+    pushQuery.subscribe(KsqlSpecHelper.makeRowObserver("insert test: ").toReactive(scheduler))
 
     val observable = Observable.range(10, 0, -1).map { i =>
       new KsqlObject()
