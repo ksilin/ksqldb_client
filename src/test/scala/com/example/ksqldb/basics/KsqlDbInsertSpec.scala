@@ -1,28 +1,21 @@
-package com.example.ksqldb
+package com.example.ksqldb.basics
 
-import com.example.ksqldb.util.{KsqlSpecHelper, LocalSetup}
+import com.example.ksqldb.util._
 import io.confluent.ksql.api.client.{ExecuteStatementResult, KsqlObject, StreamedQueryResult}
-import org.scalatest.{BeforeAndAfterAll, BeforeAndAfterEach}
-import org.scalatest.freespec.AnyFreeSpec
-import org.scalatest.matchers.must.Matchers
 import monix.execution.Scheduler.{global => scheduler}
 import monix.reactive.Observable
 import org.reactivestreams.Publisher
-import wvlet.log.LogSupport
+import org.scalatest.BeforeAndAfterEach
 
 import java.util.concurrent.CompletableFuture
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
 
-class KsqlDbInsertSpec
-    extends AnyFreeSpec
-    with Matchers
-    with BeforeAndAfterAll
-    with BeforeAndAfterEach
-    with FutureConverter
-    with LogSupport {
+class KsqlDbInsertSpec extends SpecBase with BeforeAndAfterEach {
 
-  val setup: LocalSetup = LocalSetup()
+  private val clientProps: ClientProps = CCloudClientProps.create(configPath = Some("ccloud.stag.local"))
+  private val setup: KsqlConnectionSetup =
+    CCloudSetup(ksqlHost = "localhost", ksqlDbPort = 8088, clientProps)
   val streamName        = "toBeInsertedInto"
 
   override def beforeEach(): Unit =

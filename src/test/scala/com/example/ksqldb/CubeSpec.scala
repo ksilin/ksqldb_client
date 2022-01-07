@@ -1,6 +1,6 @@
 package com.example.ksqldb
 
-import com.example.ksqldb.util.{KsqlSpecHelper, LocalSetup, SpecBase}
+import com.example.ksqldb.util.{KsqlConnectionSetup, KsqlSpecHelper, LocalSetup, SpecBase}
 import io.confluent.ksql.api.client._
 import io.confluent.ksql.api.client.exception.KsqlClientException
 import org.apache.kafka.clients.admin.AdminClient
@@ -12,7 +12,7 @@ import scala.util.Random
 
 class CubeSpec extends SpecBase {
 
-  private val setup: LocalSetup        = LocalSetup()
+  private val setup: KsqlConnectionSetup        = LocalSetup()
   private val client: Client           = setup.client
   private val adminClient: AdminClient = setup.adminClient
   private val pollTimeout: Duration    = Duration.ofMillis(1000)

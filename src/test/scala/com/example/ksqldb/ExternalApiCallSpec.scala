@@ -19,7 +19,7 @@ case class RequestMsg(id: String, userId: String, timestamp: Long)
 
 class ApiCallSpec extends SpecBase {
 
-  private val clientProps: ClientProps = CCloudClientProps.create(configPath = Some("ccloud.stag"))
+  private val clientProps: ClientProps = CCloudClientProps.create(configPath = Some("cloud.stag.local"))
   private val setup: KsqlConnectionSetup =
     CCloudSetup(ksqlHost = "localhost", ksqlDbPort = 8088, clientProps)
   private val ksqlClient: Client           = setup.client

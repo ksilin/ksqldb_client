@@ -1,8 +1,7 @@
 package com.example.ksqldb
 
-import com.example.ksqldb.util.{KsqlSpecHelper, LocalSetup, SpecBase}
-import io.confluent.ksql.api.client.{Client, KsqlArray, KsqlObject, Row, StreamedQueryResult}
-import org.apache.kafka.clients.admin.AdminClient
+import com.example.ksqldb.util.{CCloudClientProps, CCloudSetup, ClientProps, KsqlConnectionSetup, KsqlSpecHelper, SpecBase}
+import io.confluent.ksql.api.client.{KsqlArray, KsqlObject, Row, StreamedQueryResult}
 
 import java.time.Duration
 import scala.jdk.CollectionConverters._
@@ -12,13 +11,15 @@ case class Xy(x: Int, y: Int)
 
 class ExplodeSpec extends SpecBase {
 
-  private val setup: LocalSetup        = LocalSetup()
-  private val client: Client           = setup.client
-  private val adminClient: AdminClient = setup.adminClient
+  private val clientProps: ClientProps = CCloudClientProps.create(configPath = Some("cloud.stag.local"))
+  private val setup: KsqlConnectionSetup =
+    CCloudSetup(ksqlHost = "localhost", ksqlDbPort = 8088, clientProps)
+  private val ksqlClient  = setup.client
+  private val adminClient = setup.adminClient
   private val pollTimeout: Duration    = Duration.ofMillis(1000)
 
   override def afterAll(): Unit = {
-    client.close()
+    ksqlClient.close()
     super.afterAll()
   }
 
@@ -30,7 +31,7 @@ class ExplodeSpec extends SpecBase {
     KsqlSpecHelper.prepareTest(
       streamsToDelete = List(streamName, explodedStreamName),
       topicsToCreate = List(topicName),
-      client = client,
+      client = ksqlClient,
       adminClient = adminClient
     )
 
@@ -44,7 +45,7 @@ class ExplodeSpec extends SpecBase {
          | value_format='json',
          | timestamp = 'ts'
          | );""".stripMargin
-    client.executeStatement(createArrayStreamSql).get
+    ksqlClient.executeStatement(createArrayStreamSql).get
 
     val createExplodeStreamSql =
       s"""CREATE STREAM $explodedStreamName AS SELECT
@@ -52,7 +53,7 @@ class ExplodeSpec extends SpecBase {
          | EXPLODE(items) AS ITEM,
          | ts
          | FROM $streamName;""".stripMargin
-    client.executeStatement(createExplodeStreamSql).get
+    ksqlClient.executeStatement(createExplodeStreamSql).get
 
     (1 to 2) foreach { i =>
       val ksqlObject = makeKsqlObjectSingleArray(i)
@@ -62,7 +63,7 @@ class ExplodeSpec extends SpecBase {
     val querySql               = s"""SELECT *
                          |FROM $explodedStreamName
                          |EMIT CHANGES;""".stripMargin
-    val q: StreamedQueryResult = client.streamQuery(querySql).get()
+    val q: StreamedQueryResult = ksqlClient.streamQuery(querySql).get()
 
     // expecting 8 result rows = 2 source rows with 4 values each
     (1 to 10) foreach { _ =>
@@ -79,7 +80,7 @@ class ExplodeSpec extends SpecBase {
     KsqlSpecHelper.prepareTest(
       streamsToDelete = List(streamName, explodedStreamName),
       topicsToCreate = List(topicName),
-      client = client,
+      client = ksqlClient,
       adminClient = adminClient
     )
 
@@ -93,7 +94,7 @@ class ExplodeSpec extends SpecBase {
          | value_format='json',
          | timestamp = 'ts'
          | );""".stripMargin
-    client.executeStatement(createArrayStreamSql).get
+    ksqlClient.executeStatement(createArrayStreamSql).get
 
     val createExplodeStreamSql =
       s"""CREATE STREAM $explodedStreamName AS SELECT
@@ -101,7 +102,7 @@ class ExplodeSpec extends SpecBase {
          | EXPLODE(items) AS ITEM,
          | ts
          | FROM $streamName;""".stripMargin
-    client.executeStatement(createExplodeStreamSql).get
+    ksqlClient.executeStatement(createExplodeStreamSql).get
 
     // does not work with Json strings
     // Message: Can't coerce a field of type class io.vertx.core.json.JsonArray (["{\"x\": 1, \"y\": 2}","{\"x\": 3, \"y\": 4}"]) into type ARRAY<STRUCT<`X` INTEGER, `Y` INTEGER>>
@@ -130,7 +131,7 @@ class ExplodeSpec extends SpecBase {
     val querySql               = s"""SELECT *
                                     |FROM $explodedStreamName
                                     |EMIT CHANGES;""".stripMargin
-    val q: StreamedQueryResult = client.streamQuery(querySql).get()
+    val q: StreamedQueryResult = ksqlClient.streamQuery(querySql).get()
 
     // expecting 2 elements
     (1 to 3) foreach { _ =>
@@ -152,7 +153,7 @@ class ExplodeSpec extends SpecBase {
     KsqlSpecHelper.prepareTest(
       streamsToDelete = List(streamName, explodedStreamName),
       topicsToCreate = List(topicName),
-      client = client,
+      client = ksqlClient,
       adminClient = adminClient
     )
 
@@ -167,7 +168,7 @@ class ExplodeSpec extends SpecBase {
          | value_format='json',
          | timestamp = 'ts'
          | );""".stripMargin
-    client.executeStatement(createArrayStreamSql).get
+    ksqlClient.executeStatement(createArrayStreamSql).get
 
     val createExplodeStreamSql =
       s"""CREATE STREAM $explodedStreamName AS SELECT
@@ -176,7 +177,7 @@ class ExplodeSpec extends SpecBase {
          | EXPLODE(numbers) AS NUM,
          | ts
          | FROM $streamName;""".stripMargin
-    client.executeStatement(createExplodeStreamSql).get
+    ksqlClient.executeStatement(createExplodeStreamSql).get
 
     (1 to 2) foreach { i =>
       val ksqlObject = makeKsqlObjectTwoArrays(i)
@@ -187,7 +188,7 @@ class ExplodeSpec extends SpecBase {
     val querySql               = s"""SELECT *
                       |FROM $explodedStreamName
                       |EMIT CHANGES;""".stripMargin
-    val q: StreamedQueryResult = client.streamQuery(querySql).get()
+    val q: StreamedQueryResult = ksqlClient.streamQuery(querySql).get()
 
     // expecting 8 result rows = 2 source rows with 4 values in the longest array
     (1 to 10) foreach { _ =>
@@ -211,7 +212,7 @@ class ExplodeSpec extends SpecBase {
       streamsToDelete = List(streamName, explodedStreamName, evalStreamName),
       tablesToDelete = List(collectTableName, splitTable1Name, splitTable2Name),
       topicsToCreate = List(topicName),
-      client = client,
+      client = ksqlClient,
       adminClient = adminClient
     )
 
@@ -225,7 +226,7 @@ class ExplodeSpec extends SpecBase {
          | value_format='json',
          | timestamp = 'ts'
          | );""".stripMargin
-    client.executeStatement(createArrayStreamSql).get
+    ksqlClient.executeStatement(createArrayStreamSql).get
 
     val createExplodeStreamSql =
       s"""CREATE STREAM $explodedStreamName AS SELECT
@@ -233,7 +234,7 @@ class ExplodeSpec extends SpecBase {
          | EXPLODE(items) AS ITEM,
          | ts
          | FROM $streamName;""".stripMargin
-    client.executeStatement(createExplodeStreamSql).get
+    ksqlClient.executeStatement(createExplodeStreamSql).get
 
     val createEvalStreamSql =
       s"""CREATE STREAM $evalStreamName AS SELECT
@@ -242,7 +243,7 @@ class ExplodeSpec extends SpecBase {
          | LEN(ITEM) AS L,
          | ts
          | FROM $explodedStreamName;""".stripMargin
-    client.executeStatement(createEvalStreamSql).get
+    ksqlClient.executeStatement(createEvalStreamSql).get
 
 //    val explodeQuerySql =
 //      s"""SELECT id,
@@ -274,23 +275,23 @@ class ExplodeSpec extends SpecBase {
                           |COLLECT_LIST(ITEM) AS ITEMS
                           |FROM $evalStreamName
                           |GROUP BY ID, L;""".stripMargin
-    client.executeStatement(collectStreamSql).get
+    ksqlClient.executeStatement(collectStreamSql).get
 
     val selectCollectedQuery      = s"""SELECT * FROM $collectTableName EMIT CHANGES;""".stripMargin
-    val colQ: StreamedQueryResult = client.streamQuery(selectCollectedQuery).get()
+    val colQ: StreamedQueryResult = ksqlClient.streamQuery(selectCollectedQuery).get()
     println(s"created query: ${colQ.queryID()}")
 
     val splitTableLL2Sql = s"""CREATE TABLE $splitTable1Name AS
                               |SELECT *
                               |FROM $collectTableName
                               |WHERE LL = 2;""".stripMargin
-    client.executeStatement(splitTableLL2Sql).get
+    ksqlClient.executeStatement(splitTableLL2Sql).get
 
     val splitTableLL6Sql = s"""CREATE TABLE  $splitTable2Name AS
                              |SELECT *
                              |FROM $collectTableName
                              |WHERE LL = 6;""".stripMargin
-    client.executeStatement(splitTableLL6Sql).get
+    ksqlClient.executeStatement(splitTableLL6Sql).get
 
     val queryLL2Sql = s"""SELECT *
              |FROM $splitTable1Name
@@ -300,10 +301,10 @@ class ExplodeSpec extends SpecBase {
                          |FROM $splitTable2Name
                          |EMIT CHANGES;""".stripMargin
 
-    val queryLL2: StreamedQueryResult = client.streamQuery(queryLL2Sql).get()
+    val queryLL2: StreamedQueryResult = ksqlClient.streamQuery(queryLL2Sql).get()
     println(s"created query: ${queryLL2.queryID()}")
 
-    val queryLL6: StreamedQueryResult = client.streamQuery(queryLL6Sql).get()
+    val queryLL6: StreamedQueryResult = ksqlClient.streamQuery(queryLL6Sql).get()
     println(s"created query: ${queryLL6.queryID()}")
 
     (1 to 10) foreach { i =>
