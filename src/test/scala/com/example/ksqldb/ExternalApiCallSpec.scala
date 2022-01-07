@@ -1,30 +1,21 @@
 package com.example.ksqldb
 
 import com.example.ksqldb.util.TestData.{User, random}
-import com.example.ksqldb.util.{CCloudClientProps, CCloudSetup, ClientProps, KsqlConnectionSetup, KsqlSpecHelper, RecordProcessor, SpecBase}
+import com.example.ksqldb.util.{ KsqlSpecHelper, RecordProcessor, SpecBase}
 import com.fasterxml.jackson.databind.JsonNode
 import io.circe.generic.auto._
-import io.confluent.ksql.api.client.{Client, ExecuteStatementResult, Row, StreamedQueryResult}
-import org.apache.kafka.clients.admin.AdminClient
+import io.confluent.ksql.api.client.{ ExecuteStatementResult, Row, StreamedQueryResult}
 import org.apache.kafka.clients.consumer.{ConsumerConfig, ConsumerRecord, KafkaConsumer}
 import org.apache.kafka.clients.producer.{ProducerConfig, ProducerRecord}
 import org.apache.kafka.common.TopicPartition
 
-import java.time.Duration
 import scala.jdk.CollectionConverters._
 import java.util.Properties
 import scala.util.Random
 
 case class RequestMsg(id: String, userId: String, timestamp: Long)
 
-class ApiCallSpec extends SpecBase {
-
-  private val clientProps: ClientProps = CCloudClientProps.create(configPath = Some("cloud.stag.local"))
-  private val setup: KsqlConnectionSetup =
-    CCloudSetup(ksqlHost = "localhost", ksqlDbPort = 8088, clientProps)
-  private val ksqlClient: Client           = setup.client
-  private val adminClient: AdminClient = setup.adminClient
-  private val pollTimeout: Duration    = Duration.ofMillis(1000)
+class ApiCallSpec extends SpecBase(configPath = Some("ccloud.stag.local")) {
 
   val users: Seq[User]           = random[User](50).distinctBy(_.id).take(5)
   val userIds: Seq[String]       = users.map(_.id)

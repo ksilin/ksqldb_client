@@ -11,18 +11,15 @@ import java.util.concurrent.CompletableFuture
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
 
-class KsqlDbInsertSpec extends SpecBase with BeforeAndAfterEach {
+class KsqlDbInsertSpec extends SpecBase(configPath = Some("ccloud.stag.local")) with BeforeAndAfterEach {
 
-  private val clientProps: ClientProps = CCloudClientProps.create(configPath = Some("ccloud.stag.local"))
-  private val setup: KsqlConnectionSetup =
-    CCloudSetup(ksqlHost = "localhost", ksqlDbPort = 8088, clientProps)
   val streamName        = "toBeInsertedInto"
 
   override def beforeEach(): Unit =
-    KsqlSpecHelper.deleteStream(streamName, setup.client, setup.adminClient)
+    KsqlSpecHelper.deleteStream(streamName, ksqlClient, setup.adminClient)
 
   override def afterAll(): Unit = {
-    setup.client.close()
+    ksqlClient.close()
     super.afterAll()
   }
 
@@ -43,9 +40,9 @@ class KsqlDbInsertSpec extends SpecBase with BeforeAndAfterEach {
   "must insert rows into stream via Client.insert" in {
 
     val createdStream: ExecuteStatementResult =
-      setup.client.executeStatement(createStreamSql).get
+      ksqlClient.executeStatement(createStreamSql).get
     val pushQuery: StreamedQueryResult =
-      setup.client.streamQuery(selectUnder6PushQuery).get
+      ksqlClient.streamQuery(selectUnder6PushQuery).get
 
     pushQuery.subscribe(KsqlSpecHelper.makeRowObserver("insert test: ").toReactive(scheduler))
 
@@ -54,12 +51,12 @@ class KsqlDbInsertSpec extends SpecBase with BeforeAndAfterEach {
       val row = new KsqlObject()
         .put("id", i.toString)
         .put("amount", i)
-      val insert: CompletableFuture[Void] = setup.client.insertInto(streamName, row)
+      val insert: CompletableFuture[Void] = ksqlClient.insertInto(streamName, row)
       toScalaFuture(insert).map(_ => info(s"inserted $i"))
     }
     Thread.sleep(200) // make sure we dont break the polling
     // no results from a terminated query:
-    setup.client.terminatePushQuery(pushQuery.queryID()).get
+    ksqlClient.terminatePushQuery(pushQuery.queryID()).get
     Thread.sleep(200) // need to wait for the query to actually terminate
     // push query does not terminate
     info(
@@ -71,9 +68,9 @@ class KsqlDbInsertSpec extends SpecBase with BeforeAndAfterEach {
   "must insert rows into stream via reactive publisher" in {
 
     val createdStream: ExecuteStatementResult =
-      setup.client.executeStatement(createStreamSql).get
+      ksqlClient.executeStatement(createStreamSql).get
     val pushQuery: StreamedQueryResult =
-      setup.client.streamQuery(selectUnder6PushQuery).get
+      ksqlClient.streamQuery(selectUnder6PushQuery).get
 
     pushQuery.subscribe(KsqlSpecHelper.makeRowObserver("insert test: ").toReactive(scheduler))
 
@@ -84,11 +81,11 @@ class KsqlDbInsertSpec extends SpecBase with BeforeAndAfterEach {
     }
     val pub: Publisher[KsqlObject] = observable.toReactivePublisher(scheduler)
 
-    setup.client.streamInserts(streamName, pub)
+    ksqlClient.streamInserts(streamName, pub)
 
     Thread.sleep(200) // make sure we dont break the polling
     // no results from a terminated query:
-    setup.client.terminatePushQuery(pushQuery.queryID()).get
+    ksqlClient.terminatePushQuery(pushQuery.queryID()).get
     Thread.sleep(200) // need to wait for the query to actually terminate
     // push query does not terminate
     info(

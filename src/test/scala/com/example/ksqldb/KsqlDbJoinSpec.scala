@@ -1,39 +1,16 @@
 package com.example.ksqldb
 
 import java.time.Duration
-import java.util.Properties
 import com.example.ksqldb.util.TestData._
-import com.example.ksqldb.util.{EnvVarUtil, KsqlSpecHelper, LocalSetup}
+import com.example.ksqldb.util.{ KsqlSpecHelper, SpecBase}
 import io.circe.generic.auto._
-import io.confluent.ksql.api.client.{Client, ExecuteStatementResult, Row, StreamedQueryResult}
-import org.apache.kafka.clients.admin.AdminClient
-import org.scalatest.BeforeAndAfterAll
-import org.scalatest.freespec.AnyFreeSpec
-import org.scalatest.matchers.must.Matchers
+import io.confluent.ksql.api.client.{ ExecuteStatementResult, Row, StreamedQueryResult}
 import monix.execution.Scheduler.{global => scheduler}
 import org.scalacheck.Arbitrary
-import wvlet.log.{LogLevel, LogSupport, Logger}
 
-import scala.jdk.CollectionConverters._
 import scala.util.Random
 
-class KsqlDbJoinSpec
-    extends AnyFreeSpec
-    with Matchers
-    with BeforeAndAfterAll
-    with FutureConverter
-    with LogSupport {
-
-  EnvVarUtil.setEnv("RANDOM_DATA_GENERATOR_SEED", "9153932137467828920")
-
-  Logger.setDefaultLogLevel(LogLevel.INFO)
-  val loglevelProps = new Properties()
-  loglevelProps.setProperty("org.apache.kafka", LogLevel.WARN.name)
-  Logger.setLogLevels(loglevelProps)
-
-  val setup: LocalSetup        = LocalSetup()
-  val client: Client           = setup.client
-  val adminClient: AdminClient = setup.adminClient
+class KsqlDbJoinSpec extends SpecBase(configPath = Some("ccloud.stag.local")) {
 
   val users: Seq[User]     = random[User](50).distinctBy(_.id).take(5)
   val userIds: Seq[String] = users.map(_.id)
@@ -78,7 +55,7 @@ class KsqlDbJoinSpec
     }
 
   override def afterAll(): Unit = {
-    client.close()
+    ksqlClient.close()
     super.afterAll()
   }
   // https://docs.ksqldb.io/en/latest/developer-guide/joins/join-streams-and-tables/#stream-table-joins
@@ -95,7 +72,7 @@ class KsqlDbJoinSpec
          | );""".stripMargin
     // in examples, I see emit changes: https://docs.ksqldb.io/en/latest/tutorials/examples/#joining
 
-    client.executeStatement(createUsersTableSql).get
+    ksqlClient.executeStatement(createUsersTableSql).get
 
     // only LEFT and INNER are supported for stream-table
     // table updates do not produce new output, only updates on the stream side do
@@ -116,10 +93,10 @@ class KsqlDbJoinSpec
          | EMIT CHANGES;""".stripMargin
 
     val leftJoinedStreamCreated: ExecuteStatementResult =
-      client.executeStatement(leftJoinedStreamSql).get
+      ksqlClient.executeStatement(leftJoinedStreamSql).get
 
     val leftJoinedQuerySql                = s"SELECT * FROM $leftJoinedStreamName EMIT CHANGES;"
-    val queryCreated: StreamedQueryResult = client.streamQuery(leftJoinedQuerySql).get
+    val queryCreated: StreamedQueryResult = ksqlClient.streamQuery(leftJoinedQuerySql).get
     queryCreated.subscribe(KsqlSpecHelper.makeRowObserver("leftJoin").toReactive(scheduler))
 
     // inner join -> no nulls
@@ -139,12 +116,12 @@ class KsqlDbJoinSpec
     // max(c.ROWTIME, u.ROWTIME) as rt
 
     val innerJoinedStreamCreated: ExecuteStatementResult =
-      client.executeStatement(innerJoinedStreamSql).get
+      ksqlClient.executeStatement(innerJoinedStreamSql).get
     info("innerJoinedStreamCreated")
     info(innerJoinedStreamCreated)
 
     val innerJoinedQuerySql                    = s"SELECT * FROM $innerJoinedStreamName EMIT CHANGES;"
-    val queryCreatedInner: StreamedQueryResult = client.streamQuery(innerJoinedQuerySql).get
+    val queryCreatedInner: StreamedQueryResult = ksqlClient.streamQuery(innerJoinedQuerySql).get
     queryCreatedInner.subscribe(KsqlSpecHelper.makeRowObserver("innerJoin").toReactive(scheduler))
 
     Thread.sleep(1000)
@@ -170,7 +147,7 @@ class KsqlDbJoinSpec
          | timestamp = 'changedAt'
          | );""".stripMargin
 
-    client.executeStatement(createUsersTableSql).get
+    ksqlClient.executeStatement(createUsersTableSql).get
 
     val joinedStreamSql =
       s"""CREATE STREAM ${leftJoinedStreamName} AS
@@ -187,10 +164,10 @@ class KsqlDbJoinSpec
          | LEFT JOIN $userTableName u ON c.userId = u.id
          | EMIT CHANGES;""".stripMargin
 
-    client.executeStatement(joinedStreamSql).get
+    ksqlClient.executeStatement(joinedStreamSql).get
 
     val joinedQuerySql                    = s"SELECT * FROM $leftJoinedStreamName EMIT CHANGES;"
-    val queryCreated: StreamedQueryResult = client.streamQuery(joinedQuerySql).get
+    val queryCreated: StreamedQueryResult = ksqlClient.streamQuery(joinedQuerySql).get
     queryCreated.subscribe(KsqlSpecHelper.makeRowObserver("leftJoin").toReactive(scheduler))
 
     // produce test data
@@ -279,7 +256,7 @@ class KsqlDbJoinSpec
          ); """.stripMargin
 
     val userStreamCreated: ExecuteStatementResult =
-      client.executeStatement(createUserStreamSql).get
+      ksqlClient.executeStatement(createUserStreamSql).get
     info("userStreamCreated")
     info(userStreamCreated)
 
@@ -299,12 +276,12 @@ class KsqlDbJoinSpec
          | EMIT CHANGES;""".stripMargin
 
     val userClickstreamJoinedStreamSqlCreated: ExecuteStatementResult =
-      client.executeStatement(userClickstreamJoinedStreamSql).get
+      ksqlClient.executeStatement(userClickstreamJoinedStreamSql).get
     info("userClickstreamJoinedStreamSqlCreated")
     info(userClickstreamJoinedStreamSqlCreated)
 
     val joinedStreamQuerySql                   = s"SELECT * FROM $userClicksStreamToStreamJoinName EMIT CHANGES;"
-    val queryCreatedInner: StreamedQueryResult = client.streamQuery(joinedStreamQuerySql).get
+    val queryCreatedInner: StreamedQueryResult = ksqlClient.streamQuery(joinedStreamQuerySql).get
 
     // there are no unknown users
     val alertOnNullName: Row => Unit = (row: Row) => {
@@ -350,10 +327,10 @@ class KsqlDbJoinSpec
                                            | EMIT CHANGES;""".stripMargin
 
     val joinedStreamCreated: ExecuteStatementResult =
-      client.executeStatement(orderShipmentJoinStreamSql).get
+      ksqlClient.executeStatement(orderShipmentJoinStreamSql).get
 
     val query                                  = s"SELECT * FROM $orderShipmentJoinedStreamName EMIT CHANGES;"
-    val joinedStreamQuery: StreamedQueryResult = client.streamQuery(query).get
+    val joinedStreamQuery: StreamedQueryResult = ksqlClient.streamQuery(query).get
     info(joinedStreamCreated)
 
     val detectMissingShipments: Row => Unit = (row: Row) => {
@@ -392,10 +369,10 @@ class KsqlDbJoinSpec
                                                    | EMIT CHANGES;""".stripMargin
 
     val joinedStreamCreated: ExecuteStatementResult =
-      client.executeStatement(orderShipmentJoinStreamSql).get
+      ksqlClient.executeStatement(orderShipmentJoinStreamSql).get
 
     val query                                  = s"SELECT * FROM $orderShipmentJoinedStreamName EMIT CHANGES;"
-    val joinedStreamQuery: StreamedQueryResult = client.streamQuery(query).get
+    val joinedStreamQuery: StreamedQueryResult = ksqlClient.streamQuery(query).get
     info(joinedStreamCreated)
 
     joinedStreamQuery.subscribe(
@@ -429,10 +406,10 @@ class KsqlDbJoinSpec
     // TODO - join on windowed streams (join ON window)
 
     val joinedStreamCreated: ExecuteStatementResult =
-      client.executeStatement(orderShipmentJoinStreamSql).get
+      ksqlClient.executeStatement(orderShipmentJoinStreamSql).get
 
     val query                                  = s"SELECT * FROM $orderShipmentJoinedStreamName EMIT CHANGES;"
-    val joinedStreamQuery: StreamedQueryResult = client.streamQuery(query).get
+    val joinedStreamQuery: StreamedQueryResult = ksqlClient.streamQuery(query).get
     info(joinedStreamCreated)
 
     joinedStreamQuery.subscribe(
@@ -476,18 +453,18 @@ class KsqlDbJoinSpec
   }
 
   def prepareClicksAndUsers(produceTestData: Boolean = true): Unit = {
-    KsqlSpecHelper.deleteTable(userTableName, client)
-    KsqlSpecHelper.deleteStream(clickStreamName, client, adminClient)
-    KsqlSpecHelper.deleteStream(leftJoinedStreamName, client, adminClient)
-    KsqlSpecHelper.deleteStream(innerJoinedStreamName, client, adminClient)
-    KsqlSpecHelper.deleteStream(userStreamName, client, adminClient)
-    KsqlSpecHelper.deleteStream(userClicksStreamToStreamJoinName, client, adminClient)
+    KsqlSpecHelper.deleteTable(userTableName, ksqlClient)
+    KsqlSpecHelper.deleteStream(clickStreamName, ksqlClient, adminClient)
+    KsqlSpecHelper.deleteStream(leftJoinedStreamName, ksqlClient, adminClient)
+    KsqlSpecHelper.deleteStream(innerJoinedStreamName, ksqlClient, adminClient)
+    KsqlSpecHelper.deleteStream(userStreamName, ksqlClient, adminClient)
+    KsqlSpecHelper.deleteStream(userClicksStreamToStreamJoinName, ksqlClient, adminClient)
 
     KsqlSpecHelper.deleteTopic(clickTopicName, adminClient)
     KsqlSpecHelper.deleteTopic(userTopicName, adminClient)
 
-    KsqlSpecHelper.createTopic(clickTopicName, adminClient)
-    KsqlSpecHelper.createTopic(userTopicName, adminClient)
+    KsqlSpecHelper.createTopic(clickTopicName, adminClient, replicationFactor)
+    KsqlSpecHelper.createTopic(userTopicName, adminClient, replicationFactor)
 
     if (produceTestData) {
       val userProducer = JsonStringProducer[String, User](
@@ -511,21 +488,21 @@ class KsqlDbJoinSpec
       s"CREATE STREAM $clickStreamName (userId VARCHAR KEY, element VARCHAR, userAgent VARCHAR, timestamp BIGINT ) WITH (kafka_topic='$clickTopicName', value_format='json', timestamp = 'timestamp');"
 
     val clickStreamCreated: ExecuteStatementResult =
-      client.executeStatement(createClickStreamSql).get()
+      ksqlClient.executeStatement(createClickStreamSql).get()
     info(clickStreamCreated)
   }
 
   def prepareOrdersAndShipments(produceTestData: Boolean = true): Unit = {
 
-    KsqlSpecHelper.deleteStream(orderStreamName, client, adminClient)
-    KsqlSpecHelper.deleteStream(shipmentStreamName, client, adminClient)
-    KsqlSpecHelper.deleteStream(orderShipmentJoinedStreamName, client, adminClient)
+    KsqlSpecHelper.deleteStream(orderStreamName, ksqlClient, adminClient)
+    KsqlSpecHelper.deleteStream(shipmentStreamName, ksqlClient, adminClient)
+    KsqlSpecHelper.deleteStream(orderShipmentJoinedStreamName, ksqlClient, adminClient)
 
     KsqlSpecHelper.deleteTopic(orderTopicName, adminClient)
     KsqlSpecHelper.deleteTopic(shipmentTopicName, adminClient)
 
-    KsqlSpecHelper.createTopic(orderTopicName, adminClient)
-    KsqlSpecHelper.createTopic(shipmentTopicName, adminClient)
+    KsqlSpecHelper.createTopic(orderTopicName, adminClient, replicationFactor)
+    KsqlSpecHelper.createTopic(shipmentTopicName, adminClient, replicationFactor)
 
     if (produceTestData) {
       val orderProducer =
@@ -545,14 +522,14 @@ class KsqlDbJoinSpec
       s"CREATE STREAM $orderStreamName (id VARCHAR KEY, userId VARCHAR, prodId VARCHAR, amount INT, location VARCHAR, timestamp BIGINT ) WITH (kafka_topic='$orderTopicName', value_format='json', timestamp = 'timestamp');"
 
     val orderStreamCreated: ExecuteStatementResult =
-      client.executeStatement(createOrderStreamSql).get()
+      ksqlClient.executeStatement(createOrderStreamSql).get()
     info(orderStreamCreated)
 
     val createShipmentStreamSql =
       s"CREATE STREAM $shipmentStreamName (id VARCHAR KEY, orderId VARCHAR, warehouse VARCHAR, timestamp BIGINT ) WITH (kafka_topic='$shipmentTopicName', value_format='json', timestamp = 'timestamp');"
 
     val shipmentStreamCreated: ExecuteStatementResult =
-      client.executeStatement(createShipmentStreamSql).get()
+      ksqlClient.executeStatement(createShipmentStreamSql).get()
     info(shipmentStreamCreated)
   }
 

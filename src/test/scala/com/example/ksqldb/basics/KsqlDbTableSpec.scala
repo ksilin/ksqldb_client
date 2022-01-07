@@ -6,20 +6,13 @@ import com.example.ksqldb.util._
 import io.circe.generic.auto._
 import io.confluent.ksql.api.client.Row
 import io.confluent.ksql.api.client.exception.KsqlClientException
-import org.apache.kafka.clients.producer.ProducerConfig
 
 import java.util
 import java.util.concurrent.ExecutionException
 import scala.collection.mutable
 import scala.jdk.CollectionConverters._
 
-class KsqlDbTableSpec extends SpecBase {
-
-  private val clientProps: ClientProps = CCloudClientProps.create(configPath = Some("cloud.stag.local"))
-  private val setup: KsqlConnectionSetup =
-    CCloudSetup(ksqlHost = "localhost", ksqlDbPort = 8088, clientProps)
-  private val ksqlClient  = setup.client
-  private val adminClient = setup.adminClient
+class KsqlDbTableSpec extends SpecBase(configPath = Some("ccloud.stag.local")) {
 
   val users: Seq[User]        = random[User](50).distinctBy(_.id).take(5)
   val userIds: Seq[String]    = users.map(_.id)
@@ -195,10 +188,6 @@ class KsqlDbTableSpec extends SpecBase {
 
   override def beforeAll(): Unit = {
 
-    val bootstrapServer: String =
-      setup.commonProps.get(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG).toString
-    val rf: Short = if (bootstrapServer.contains("cloud")) 3 else 1
-
     KsqlSpecHelper.deleteTable(userTableName, ksqlClient)
     KsqlSpecHelper.deleteStream(userStreamName, ksqlClient, adminClient)
 
@@ -208,9 +197,9 @@ class KsqlDbTableSpec extends SpecBase {
 
     KsqlSpecHelper.deleteStream(orderStreamName, ksqlClient, adminClient)
 
-    KsqlSpecHelper.createTopic(userTopicName, adminClient, 1, rf)
-    KsqlSpecHelper.createTopic(productTopicName, adminClient, 1, rf)
-    KsqlSpecHelper.createTopic(orderTopicName, adminClient, 1, rf)
+    KsqlSpecHelper.createTopic(userTopicName, adminClient, replicationFactor)
+    KsqlSpecHelper.createTopic(productTopicName, adminClient, replicationFactor)
+    KsqlSpecHelper.createTopic(orderTopicName, adminClient, replicationFactor)
 
     val userProducer = JsonStringProducer[String, User](setup.commonProps, userTopicName)
     val userRecords  = userProducer.makeRecords((users map (d => d.id -> d)).toMap)

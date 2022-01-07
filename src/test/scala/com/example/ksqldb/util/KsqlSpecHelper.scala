@@ -22,20 +22,22 @@ object KsqlSpecHelper extends LogSupport {
       topicsToCreate: List[String] = Nil,
       client: Client,
       adminClient: AdminClient,
-      numberOfPartitions: Int = 1,
-      replicationFactor: Short = 1
+      replicationFactor: Short,
+      numberOfPartitions: Int = 1
   ): Unit = {
     streamsToDelete foreach { s => deleteStream(s, client, adminClient) }
     tablesToDelete foreach { t => deleteTable(t, client) }
     topicsToDelete ++ tablesToDelete.map(_.toUpperCase) foreach { t => deleteTopic(t, adminClient) }
-    topicsToCreate foreach { t => createTopic(t, adminClient, numberOfPartitions, replicationFactor) }
+    topicsToCreate foreach { t =>
+      createTopic(t, adminClient, replicationFactor, numberOfPartitions)
+    }
   }
 
   def createTopic(
       topicName: String,
       adminClient: AdminClient,
-      numberOfPartitions: Int = 1,
-      replicationFactor: Short = 1
+      replicationFactor: Short,
+      numberOfPartitions: Int = 1
   ): Unit =
     if (!adminClient.listTopics().names().get().contains(topicName)) {
       debug(s"Creating topic ${topicName}")
@@ -184,7 +186,5 @@ object KsqlSpecHelper extends LogSupport {
         pos += 1
       }
     }
-
-
 
 }

@@ -1,24 +1,17 @@
 package com.example.ksqldb
 
-import com.example.ksqldb.util.{KsqlConnectionSetup, KsqlSpecHelper, LocalSetup, SpecBase}
+import com.example.ksqldb.util.{ KsqlSpecHelper, SpecBase}
 import io.confluent.ksql.api.client._
 import io.confluent.ksql.api.client.exception.KsqlClientException
-import org.apache.kafka.clients.admin.AdminClient
 
-import java.time.Duration
 import java.util.concurrent.ExecutionException
 import scala.jdk.CollectionConverters._
 import scala.util.Random
 
-class CubeSpec extends SpecBase {
-
-  private val setup: KsqlConnectionSetup        = LocalSetup()
-  private val client: Client           = setup.client
-  private val adminClient: AdminClient = setup.adminClient
-  private val pollTimeout: Duration    = Duration.ofMillis(1000)
+class CubeSpec extends SpecBase(configPath = Some("ccloud.stag.local")) {
 
   override def afterAll(): Unit = {
-    client.close()
+    ksqlClient.close()
     super.afterAll()
   }
 
@@ -39,8 +32,9 @@ class CubeSpec extends SpecBase {
     KsqlSpecHelper.prepareTest(
       streamsToDelete = List(streamName, cubedStreamName),
       topicsToCreate = List(topicName),
-      client = client,
-      adminClient = adminClient
+      client = ksqlClient,
+      adminClient = adminClient,
+      replicationFactor = replicationFactor
     )
 
     val createArrayStreamSql =
@@ -54,7 +48,7 @@ class CubeSpec extends SpecBase {
          | value_format='json',
          | timestamp = 'ts'
          | );""".stripMargin
-    client.executeStatement(createArrayStreamSql).get
+    ksqlClient.executeStatement(createArrayStreamSql).get
 
     // no casting possible in CUBE_EXPLODE - cube_explode(array[ CAST(num) AS STRING, item]) AS COMBO
     // cube_explode(array[ CAST(num) AS STRING, item]) AS COMBO,
@@ -68,7 +62,7 @@ class CubeSpec extends SpecBase {
          | FROM $streamName;""".stripMargin
 
     val ex: ExecutionException = intercept[ExecutionException] {
-      client.executeStatement(createCubeStreamSql).get
+      ksqlClient.executeStatement(createCubeStreamSql).get
     }
     ex.getCause mustBe a[KsqlClientException]
     ex.getMessage.contains(
@@ -84,8 +78,9 @@ class CubeSpec extends SpecBase {
     KsqlSpecHelper.prepareTest(
       streamsToDelete = List(streamName, cubedStreamName),
       topicsToCreate = List(topicName),
-      client = client,
-      adminClient = adminClient
+      client = ksqlClient,
+      adminClient = adminClient,
+      replicationFactor = replicationFactor
     )
 
     val createArrayStreamSql =
@@ -99,7 +94,7 @@ class CubeSpec extends SpecBase {
          | value_format='json',
          | timestamp = 'ts'
          | );""".stripMargin
-    client.executeStatement(createArrayStreamSql).get
+    ksqlClient.executeStatement(createArrayStreamSql).get
 
     // no casting possible in CUBE_EXPLODE - cube_explode(array[ CAST(num) AS STRING, item]) AS COMBO
     // cube_explode(array[ CAST(num) AS STRING, item]) AS COMBO,
@@ -114,7 +109,7 @@ class CubeSpec extends SpecBase {
 
     // Received 400 response from server: Cannot construct an array with mismatching types ([INTEGER, STRING]) from expression ARRAY[NUM, ITEM].. Error code: 40001
 
-    client.executeStatement(createCubeStreamSql).get
+    ksqlClient.executeStatement(createCubeStreamSql).get
 
     (1 to 2) foreach { i =>
       val ksqlObject = makeKsqlObjectScalar(i)
@@ -124,7 +119,7 @@ class CubeSpec extends SpecBase {
     val querySql               = s"""SELECT *
                            |FROM $cubedStreamName
                            |EMIT CHANGES;""".stripMargin
-    val q: StreamedQueryResult = client.streamQuery(querySql).get()
+    val q: StreamedQueryResult = ksqlClient.streamQuery(querySql).get()
 
     // expecting 8 result rows = permutations of 2 source values & null
 //    Row{columnNames=[ID, COMBO, TS], columnTypes=[ColumnType{type=STRING}, ColumnType{type=ARRAY}, ColumnType{type=BIGINT}], values=["id1",[null,null],1611496969700]}
@@ -150,8 +145,9 @@ class CubeSpec extends SpecBase {
     KsqlSpecHelper.prepareTest(
       streamsToDelete = List(streamName, cubedStreamName),
       topicsToCreate = List(topicName),
-      client = client,
-      adminClient = adminClient
+      client = ksqlClient,
+      adminClient = adminClient,
+      replicationFactor = replicationFactor
     )
 
     val createArrayStreamSql =
@@ -165,7 +161,7 @@ class CubeSpec extends SpecBase {
          | value_format='json',
          | timestamp = 'ts'
          | );""".stripMargin
-    client.executeStatement(createArrayStreamSql).get
+    ksqlClient.executeStatement(createArrayStreamSql).get
 
     val createCubeStreamSql =
       s"""CREATE STREAM $cubedStreamName AS SELECT
@@ -174,7 +170,7 @@ class CubeSpec extends SpecBase {
          | ts
          | FROM $streamName;""".stripMargin
 
-    client.executeStatement(createCubeStreamSql).get
+    ksqlClient.executeStatement(createCubeStreamSql).get
 
     (1 to 2) foreach { i =>
       val ksqlObject = makeKsqlObjectTwoArrays(i)
@@ -184,7 +180,7 @@ class CubeSpec extends SpecBase {
     val querySql               = s"""SELECT *
                            |FROM $cubedStreamName
                            |EMIT CHANGES;""".stripMargin
-    val q: StreamedQueryResult = client.streamQuery(querySql).get()
+    val q: StreamedQueryResult = ksqlClient.streamQuery(querySql).get()
 
     // uses full array as values, does not combine values of the two arrays
     //Row{columnNames=[ID, COMBO, TS], columnTypes=[ColumnType{type=STRING}, ColumnType{type=ARRAY}, ColumnType{type=BIGINT}], values=["id1",[null,null],1611497342394]}

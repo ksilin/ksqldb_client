@@ -1,22 +1,14 @@
 package com.example.ksqldb
 
-import com.example.ksqldb.util.{CCloudClientProps, CCloudSetup, ClientProps, KsqlConnectionSetup, KsqlSpecHelper, SpecBase}
+import com.example.ksqldb.util.{ KsqlSpecHelper, SpecBase}
 import io.confluent.ksql.api.client.{KsqlArray, KsqlObject, Row, StreamedQueryResult}
 
-import java.time.Duration
 import scala.jdk.CollectionConverters._
 import scala.util.Random
 
 case class Xy(x: Int, y: Int)
 
-class ExplodeSpec extends SpecBase {
-
-  private val clientProps: ClientProps = CCloudClientProps.create(configPath = Some("cloud.stag.local"))
-  private val setup: KsqlConnectionSetup =
-    CCloudSetup(ksqlHost = "localhost", ksqlDbPort = 8088, clientProps)
-  private val ksqlClient  = setup.client
-  private val adminClient = setup.adminClient
-  private val pollTimeout: Duration    = Duration.ofMillis(1000)
+class ExplodeSpec extends SpecBase(configPath = Some("ccloud.stag.local")) {
 
   override def afterAll(): Unit = {
     ksqlClient.close()
@@ -32,7 +24,8 @@ class ExplodeSpec extends SpecBase {
       streamsToDelete = List(streamName, explodedStreamName),
       topicsToCreate = List(topicName),
       client = ksqlClient,
-      adminClient = adminClient
+      adminClient = adminClient,
+      replicationFactor = replicationFactor
     )
 
     val createArrayStreamSql =
@@ -57,7 +50,7 @@ class ExplodeSpec extends SpecBase {
 
     (1 to 2) foreach { i =>
       val ksqlObject = makeKsqlObjectSingleArray(i)
-      setup.client.insertInto(streamName, ksqlObject).get()
+      ksqlClient.insertInto(streamName, ksqlObject).get()
     }
 
     val querySql               = s"""SELECT *
@@ -81,7 +74,8 @@ class ExplodeSpec extends SpecBase {
       streamsToDelete = List(streamName, explodedStreamName),
       topicsToCreate = List(topicName),
       client = ksqlClient,
-      adminClient = adminClient
+      adminClient = adminClient,
+      replicationFactor = replicationFactor
     )
 
     val createArrayStreamSql =
@@ -126,7 +120,7 @@ class ExplodeSpec extends SpecBase {
       .put("id", "id_struct")
       .put("items", new KsqlArray(List(xyMap1, xyMap2).asJava))
       .put("ts", System.currentTimeMillis())
-    setup.client.insertInto(streamName, o).get()
+    ksqlClient.insertInto(streamName, o).get()
 
     val querySql               = s"""SELECT *
                                     |FROM $explodedStreamName
@@ -154,7 +148,8 @@ class ExplodeSpec extends SpecBase {
       streamsToDelete = List(streamName, explodedStreamName),
       topicsToCreate = List(topicName),
       client = ksqlClient,
-      adminClient = adminClient
+      adminClient = adminClient,
+      replicationFactor = replicationFactor
     )
 
     val createArrayStreamSql =
@@ -213,7 +208,8 @@ class ExplodeSpec extends SpecBase {
       tablesToDelete = List(collectTableName, splitTable1Name, splitTable2Name),
       topicsToCreate = List(topicName),
       client = ksqlClient,
-      adminClient = adminClient
+      adminClient = adminClient,
+      replicationFactor = replicationFactor
     )
 
     val createArrayStreamSql =

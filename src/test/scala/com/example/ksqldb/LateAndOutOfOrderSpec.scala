@@ -1,8 +1,7 @@
 package com.example.ksqldb
 
-import com.example.ksqldb.util.{KsqlSpecHelper, LocalSetup, SpecBase}
-import io.confluent.ksql.api.client.{Client, KsqlObject, StreamedQueryResult}
-import org.apache.kafka.clients.admin.AdminClient
+import com.example.ksqldb.util.{KsqlSpecHelper, SpecBase}
+import io.confluent.ksql.api.client.{ KsqlObject, StreamedQueryResult}
 
 import java.time.Instant
 import monix.execution.Scheduler.{global => scheduler}
@@ -12,15 +11,12 @@ import org.scalatest.BeforeAndAfterEach
 
 import java.time.temporal.ChronoUnit
 
-class LateAndOutOfOrderSpec extends SpecBase with BeforeAndAfterEach {
+class LateAndOutOfOrderSpec extends SpecBase(configPath = Some("ccloud.stag.local")) with BeforeAndAfterEach {
 
-  private val setup: LocalSetup        = LocalSetup()
-  private val client: Client           = setup.client
-  private val adminClient: AdminClient = setup.adminClient
   val pollingTimeout                   = 5000
 
   override def afterAll(): Unit = {
-    client.close()
+    ksqlClient.close()
     super.afterAll()
   }
 
@@ -29,10 +25,11 @@ class LateAndOutOfOrderSpec extends SpecBase with BeforeAndAfterEach {
       streamsToDelete = List(sourceStreamName),
       tablesToDelete = List(tableName),
       topicsToCreate = List(sourceTopicName),
-      client = client,
-      adminClient = adminClient
+      client = ksqlClient,
+      adminClient = adminClient,
+      replicationFactor = replicationFactor
     )
-    client.executeStatement(sourceStreamSql).get()
+    ksqlClient.executeStatement(sourceStreamSql).get()
   }
 
   val sourceStreamName = "sourceStream"
@@ -45,12 +42,12 @@ class LateAndOutOfOrderSpec extends SpecBase with BeforeAndAfterEach {
 
   "event time pushes stream time outside of grace period" in {
 
-    client
+    ksqlClient
       .executeStatement(tableSql("WINDOW TUMBLING (SIZE 1 MINUTE, GRACE PERIOD 1 MINUTE)"))
       .get()
 
     val tableQuerySql          = s"SELECT * FROM $tableName EMIT CHANGES;"
-    val q: StreamedQueryResult = client.streamQuery(tableQuerySql).get
+    val q: StreamedQueryResult = ksqlClient.streamQuery(tableQuerySql).get
     q.subscribe(KsqlSpecHelper.makeRowObserver("windowed").toReactive(scheduler))
 
     val now             = Instant.now().truncatedTo(ChronoUnit.MINUTES)
@@ -60,22 +57,22 @@ class LateAndOutOfOrderSpec extends SpecBase with BeforeAndAfterEach {
 
     val obs: Observable[KsqlObject] = Observable(startEvent, outOfOrderEvent, lateEvent)
     val pub: Publisher[KsqlObject]  = obs.toReactivePublisher(scheduler)
-    setup.client.streamInserts(sourceStreamName, pub)
+    ksqlClient.streamInserts(sourceStreamName, pub)
 
     Thread.sleep(pollingTimeout) // make sure we dont break the polling
-    setup.client.terminatePushQuery(q.queryID()).get
+    ksqlClient.terminatePushQuery(q.queryID()).get
     Thread.sleep(200) // need to wait for the query to actually terminate
     info(s"done: ${q.isComplete}, failed: ${q.isFailed}")
   }
 
   "event time pushes stream time, but remains within grace period" in {
 
-    client
+    ksqlClient
       .executeStatement(tableSql("WINDOW TUMBLING (SIZE 1 MINUTE, GRACE PERIOD 1 MINUTE)"))
       .get()
 
     val tableQuerySql          = s"SELECT * FROM $tableName EMIT CHANGES;"
-    val q: StreamedQueryResult = client.streamQuery(tableQuerySql).get
+    val q: StreamedQueryResult = ksqlClient.streamQuery(tableQuerySql).get
     q.subscribe(KsqlSpecHelper.makeRowObserver("windowed").toReactive(scheduler))
 
     val now             = Instant.now().truncatedTo(ChronoUnit.MINUTES)
@@ -85,10 +82,10 @@ class LateAndOutOfOrderSpec extends SpecBase with BeforeAndAfterEach {
 
     val obs: Observable[KsqlObject] = Observable(startEvent, outOfOrderEvent, lateEvent)
     val pub: Publisher[KsqlObject]  = obs.toReactivePublisher(scheduler)
-    setup.client.streamInserts(sourceStreamName, pub)
+    ksqlClient.streamInserts(sourceStreamName, pub)
 
     Thread.sleep(pollingTimeout) // make sure we dont break the polling
-    setup.client.terminatePushQuery(q.queryID()).get
+    ksqlClient.terminatePushQuery(q.queryID()).get
     Thread.sleep(200) // need to wait for the query to actually terminate
     info(s"done: ${q.isComplete}, failed: ${q.isFailed}")
   }

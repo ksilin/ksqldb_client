@@ -10,23 +10,16 @@ import better.files._
 
 import java.io.InputStream
 import com.example.ksqldb.CsvTypes.RiderLocation
-import com.example.ksqldb.util.{CCloudClientProps, CCloudSetup, ClientProps, KsqlConnectionSetup, KsqlSpecHelper, SpecBase}
+import com.example.ksqldb.util.{ KsqlSpecHelper, SpecBase}
 import com.example.ksqldb.util.KsqlSpecHelper.printSourceDescription
 import kantan.csv._
 import kantan.csv.ops._
 import kantan.csv.generic._
 
-import scala.collection.mutable
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
 
-class KsqlDbQuickstartSpec extends SpecBase {
-
-  private val clientProps: ClientProps = CCloudClientProps.create(configPath = Some("cloud.stag.local"))
-  private val setup: KsqlConnectionSetup =
-    CCloudSetup(ksqlHost = "localhost", ksqlDbPort = 8088, clientProps)
-  private val ksqlClient  = setup.client
-  private val adminClient = setup.adminClient
+class KsqlDbQuickstartSpec extends SpecBase(configPath = Some("ccloud.stag.local")) {
 
   val streamName = "riderLocations"
   val tableName  = "mv_close"

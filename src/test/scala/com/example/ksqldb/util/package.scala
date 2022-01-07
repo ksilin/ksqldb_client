@@ -13,8 +13,4 @@ package object util {
     def adminClient: AdminClient
   }
 
-  abstract class ClientProps {
-    def clientProps: Properties
-  }
-
 }
