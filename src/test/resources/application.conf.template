@@ -1,0 +1,14 @@
+ccloud.stag.local {
+  ksql{
+    host: localhost
+    port: 8088
+    key = ABCDEFG
+    secret = "foobar"
+  }
+  kafka {
+    bootstrap = "localhost:9092"
+    key = ABCDEFG
+    secret = "foobar"
+  }
+}
+
