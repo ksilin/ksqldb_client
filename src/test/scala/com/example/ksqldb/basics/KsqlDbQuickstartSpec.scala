@@ -1,23 +1,22 @@
-package com.example.ksqldb
+package com.example.ksqldb.basics
 
-import java.util
-import java.util.concurrent.CompletableFuture
-import io.confluent.ksql.api.client.{ ExecuteStatementResult, KsqlObject, Row, SourceDescription, StreamInfo, StreamedQueryResult}
-
-import java.time.Duration
-import scala.jdk.CollectionConverters._
 import better.files._
-
-import java.io.InputStream
+import com.example.ksqldb.CsvTypes
 import com.example.ksqldb.CsvTypes.RiderLocation
-import com.example.ksqldb.util.{ KsqlSpecHelper, SpecBase}
 import com.example.ksqldb.util.KsqlSpecHelper.printSourceDescription
+import com.example.ksqldb.util.{KsqlSpecHelper, SpecBase}
+import io.confluent.ksql.api.client.{ExecuteStatementResult, KsqlObject, Row, SourceDescription, StreamInfo, StreamedQueryResult}
 import kantan.csv._
 import kantan.csv.ops._
-import kantan.csv.generic._
 
+import java.io.InputStream
+import java.time.Duration
+import java.util
+import java.util.concurrent.CompletableFuture
 import scala.concurrent.ExecutionContext.Implicits.global
-import scala.concurrent.Future
+import scala.concurrent.duration._
+import scala.concurrent.{Await, Future}
+import scala.jdk.CollectionConverters._
 
 class KsqlDbQuickstartSpec extends SpecBase(configPath = Some("ccloud.stag.local")) {
 
@@ -29,6 +28,7 @@ class KsqlDbQuickstartSpec extends SpecBase(configPath = Some("ccloud.stag.local
     val streamsBefore: util.List[StreamInfo] = ksqlClient.listStreams().get()
     streamsBefore.asScala.find(_.getName.equalsIgnoreCase(streamName)) mustBe empty
 
+    info("creating stream for rider locations")
     val createRiderLocationStreamSql =
       s"""CREATE OR REPLACE STREAM $streamName
          | (profileId VARCHAR KEY, latitude DOUBLE, longitude DOUBLE, timestamp BIGINT)
@@ -43,8 +43,22 @@ class KsqlDbQuickstartSpec extends SpecBase(configPath = Some("ccloud.stag.local
     streamsAfter.asScala.find(_.getName.equalsIgnoreCase(streamName)) must not be empty
 
     val describeStream: SourceDescription = ksqlClient.describeSource(streamName).get
-    println(s"describing stream $streamName:")
+    info(s"describing stream $streamName:")
     printSourceDescription(describeStream)
+
+    // TODO - create currentLocations table
+    // TODO - is latest_by_offset and teh group_by required?
+    val currentLocationTableSql =
+      s"""CREATE TABLE currentLocation AS
+         |  SELECT profileId,
+         |         LATEST_BY_OFFSET(latitude) AS la,
+         |         LATEST_BY_OFFSET(longitude) AS lo
+         |  FROM riderlocations
+         |  GROUP BY profileId
+         |  EMIT CHANGES;""".stripMargin
+
+    val currentLocationTableCreated: ExecuteStatementResult =
+      ksqlClient.executeStatement(currentLocationTableSql).get()
 
     val selectCloseRidersPushQuery =
       s"""SELECT * FROM $streamName
@@ -54,7 +68,7 @@ class KsqlDbQuickstartSpec extends SpecBase(configPath = Some("ccloud.stag.local
     val closeRiderPushQuery: StreamedQueryResult =
       ksqlClient.streamQuery(selectCloseRidersPushQuery).get
     // only push queries have an Id, pull queries terminate after being finished
-    println(s"createdCloseRiderPushQuery: $closeRiderPushQuery")
+    info(s"created push query for close riders : $closeRiderPushQuery")
 
     val selectCloseRidersPushQueryAsTable =
       s"""CREATE TABLE $tableName AS
@@ -67,9 +81,10 @@ class KsqlDbQuickstartSpec extends SpecBase(configPath = Some("ccloud.stag.local
     val createdCloseRiderMatPushStatement: ExecuteStatementResult =
       ksqlClient.executeStatement(selectCloseRidersPushQueryAsTable).get
     createdCloseRiderMatPushStatement.queryId() mustNot be(empty)
-    println(s"created table: $createdCloseRiderMatPushStatement")
+    info(s"created table for close riders: $createdCloseRiderMatPushStatement")
+
     val describeTable: SourceDescription = ksqlClient.describeSource(tableName).get
-    println(s"describing table $tableName:")
+    println(s"describing close riders table $tableName:")
     printSourceDescription(describeTable)
 
     val pushQueryPollTimeout = Duration.ofMillis(100)
@@ -78,45 +93,46 @@ class KsqlDbQuickstartSpec extends SpecBase(configPath = Some("ccloud.stag.local
 
     val riderLocations: List[RiderLocation] = readRiderLocationsFromFileUnsafe("riderLocations.csv")
 
-    Future.traverse(riderLocations) { rl: RiderLocation =>
-      println(s"riderLocation: $rl")
-      val row = new KsqlObject()
-        .put("profileId", rl.profileId)
-        .put("latitude", rl.latitude)
-        .put("longitude", rl.longitude)
-        .put("timestamp", rl.timestamp)
-      val insert: CompletableFuture[Void] = ksqlClient.insertInto(streamName, row)
-      toScalaFuture(insert).map(_ => println(s"inserted $rl"))
+    val insertDriverLocations: Future[List[Unit]] = Future.traverse(riderLocations) {
+      rl: RiderLocation =>
+        val rowToInsert                     = ksqlObjectFromRiderLocation(rl)
+        val insert: CompletableFuture[Void] = ksqlClient.insertInto(streamName, rowToInsert)
+        toScalaFuture(insert).map(_ => println(s"inserted $rl"))
     }
+    Await.result(insertDriverLocations, 30.seconds)
+    info("inserted all rider locations")
 
-    println("polling push query results:")
-    (1 until 5).foreach { _ =>
-      val row: Row = closeRiderPushQuery.poll(pushQueryPollTimeout)
-      println(
-        s"are we done/failed yet? ${closeRiderPushQuery.isComplete}/${closeRiderPushQuery.isFailed}"
+    info("polling for push query results:")
+    var tries    = 0
+    var row: Row = null
+    while (null == row && tries < 10) {
+      row = closeRiderPushQuery.poll(pushQueryPollTimeout)
+      info(
+        s"is push query done/failed yet? ${closeRiderPushQuery.isComplete}/${closeRiderPushQuery.isFailed}"
       )
-      println(row)
+      if (null == row) tries = tries + 1
     }
+    info(s"used $tries tris to get first close rider: $row")
 
     // Pull queries require a WHERE clause that limits the query to a single key, e.g. `SELECT * FROM X WHERE myKey=Y;`
     val selectCloseRidersPullQuery = s"SELECT * FROM $tableName WHERE profileId = '4ab5cbad';"
     // now as pull query:
     val rowsFromPullQuery: util.List[Row] =
-      ksqlClient.executeQuery(selectCloseRidersPullQuery).get//.asScala
+      ksqlClient.executeQuery(selectCloseRidersPullQuery).get
     rowsFromPullQuery.size mustBe 1
 
-    // no results from a terminated query:
+    // no results from a terminated push query:
     ksqlClient.terminatePushQuery(closeRiderPushQuery.queryID()).get
     Thread.sleep(200) // need to wait for the query to actually terminate
 
     // push query does not terminate
     println(
-      s"are we done/failed yet? ${closeRiderPushQuery.isComplete}/${closeRiderPushQuery.isFailed}"
+      s"is push query done/failed yet? ${closeRiderPushQuery.isComplete}/${closeRiderPushQuery.isFailed}"
     )
-    val row: Row = closeRiderPushQuery.poll(pushQueryPollTimeout)
-    println(row)
+    val closeRiderRow: Row = closeRiderPushQuery.poll(pushQueryPollTimeout)
+    println(closeRiderRow)
 
-    Thread.sleep(1000) // make sure we dont break the polling
+    Thread.sleep(1000) // make sure we don't break the polling
   }
 
   def readRiderLocationsFromFileUnsafe(resourceFileName: String): List[RiderLocation] = {
@@ -132,6 +148,13 @@ class KsqlDbQuickstartSpec extends SpecBase(configPath = Some("ccloud.stag.local
     println(s"found ${locationsMaybe.size} results")
     locationsMaybe.map(_.toOption.get)
   }
+
+  def ksqlObjectFromRiderLocation(rl: RiderLocation): KsqlObject =
+    new KsqlObject()
+      .put("profileId", rl.profileId)
+      .put("latitude", rl.latitude)
+      .put("longitude", rl.longitude)
+      .put("timestamp", rl.timestamp)
 
   override def beforeAll(): Unit = {
     // streams created as SELECT must be stopped before removal

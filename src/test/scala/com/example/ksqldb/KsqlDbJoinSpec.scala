@@ -2,10 +2,10 @@ package com.example.ksqldb
 
 import java.time.Duration
 import com.example.ksqldb.util.TestData._
-import com.example.ksqldb.util.{ KsqlSpecHelper, SpecBase}
+import com.example.ksqldb.util.{ KsqlSpecHelper, SpecBase }
 import io.circe.generic.auto._
-import io.confluent.ksql.api.client.{ ExecuteStatementResult, Row, StreamedQueryResult}
-import monix.execution.Scheduler.{global => scheduler}
+import io.confluent.ksql.api.client.{ ExecuteStatementResult, Row, StreamedQueryResult }
+import monix.execution.Scheduler.{ global => scheduler }
 import org.scalacheck.Arbitrary
 
 import scala.util.Random
@@ -453,12 +453,13 @@ class KsqlDbJoinSpec extends SpecBase(configPath = Some("ccloud.stag.local")) {
   }
 
   def prepareClicksAndUsers(produceTestData: Boolean = true): Unit = {
-    KsqlSpecHelper.deleteTable(userTableName, ksqlClient)
-    KsqlSpecHelper.deleteStream(clickStreamName, ksqlClient, adminClient)
+
     KsqlSpecHelper.deleteStream(leftJoinedStreamName, ksqlClient, adminClient)
     KsqlSpecHelper.deleteStream(innerJoinedStreamName, ksqlClient, adminClient)
     KsqlSpecHelper.deleteStream(userStreamName, ksqlClient, adminClient)
     KsqlSpecHelper.deleteStream(userClicksStreamToStreamJoinName, ksqlClient, adminClient)
+    KsqlSpecHelper.deleteTable(userTableName, ksqlClient)
+    KsqlSpecHelper.deleteStream(clickStreamName, ksqlClient, adminClient)
 
     KsqlSpecHelper.deleteTopic(clickTopicName, adminClient)
     KsqlSpecHelper.deleteTopic(userTopicName, adminClient)
@@ -494,9 +495,9 @@ class KsqlDbJoinSpec extends SpecBase(configPath = Some("ccloud.stag.local")) {
 
   def prepareOrdersAndShipments(produceTestData: Boolean = true): Unit = {
 
+    KsqlSpecHelper.deleteStream(orderShipmentJoinedStreamName, ksqlClient, adminClient)
     KsqlSpecHelper.deleteStream(orderStreamName, ksqlClient, adminClient)
     KsqlSpecHelper.deleteStream(shipmentStreamName, ksqlClient, adminClient)
-    KsqlSpecHelper.deleteStream(orderShipmentJoinedStreamName, ksqlClient, adminClient)
 
     KsqlSpecHelper.deleteTopic(orderTopicName, adminClient)
     KsqlSpecHelper.deleteTopic(shipmentTopicName, adminClient)

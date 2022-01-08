@@ -1,8 +1,8 @@
 package com.example.ksqldb.basics
 
 import com.example.ksqldb.util._
-import io.confluent.ksql.api.client.{ExecuteStatementResult, KsqlObject, StreamedQueryResult}
-import monix.execution.Scheduler.{global => scheduler}
+import io.confluent.ksql.api.client.{ ExecuteStatementResult, KsqlObject, StreamedQueryResult }
+import monix.execution.Scheduler.{ global => scheduler }
 import monix.reactive.Observable
 import org.reactivestreams.Publisher
 import org.scalatest.BeforeAndAfterEach
@@ -11,17 +11,11 @@ import java.util.concurrent.CompletableFuture
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
 
-class KsqlDbInsertSpec extends SpecBase(configPath = Some("ccloud.stag.local")) with BeforeAndAfterEach {
+class KsqlDbInsertSpec
+    extends SpecBase(configPath = Some("ccloud.stag.local"))
+    with BeforeAndAfterEach {
 
-  val streamName        = "toBeInsertedInto"
-
-  override def beforeEach(): Unit =
-    KsqlSpecHelper.deleteStream(streamName, ksqlClient, setup.adminClient)
-
-  override def afterAll(): Unit = {
-    ksqlClient.close()
-    super.afterAll()
-  }
+  val streamName = "toBeInsertedInto"
 
   val createStreamSql: String =
     s"""CREATE OR REPLACE STREAM $streamName
@@ -37,7 +31,7 @@ class KsqlDbInsertSpec extends SpecBase(configPath = Some("ccloud.stag.local")) 
 
   "must succeed on inserting 'wider' data - all fields in schema contained, but also some additional ones"
 
-  "must insert rows into stream via Client.insert" in {
+  "must insert rows into stream via Client.insertInto" in {
 
     val createdStream: ExecuteStatementResult =
       ksqlClient.executeStatement(createStreamSql).get
@@ -54,13 +48,13 @@ class KsqlDbInsertSpec extends SpecBase(configPath = Some("ccloud.stag.local")) 
       val insert: CompletableFuture[Void] = ksqlClient.insertInto(streamName, row)
       toScalaFuture(insert).map(_ => info(s"inserted $i"))
     }
-    Thread.sleep(200) // make sure we dont break the polling
+    Thread.sleep(200) // make sure we don't break the polling
     // no results from a terminated query:
     ksqlClient.terminatePushQuery(pushQuery.queryID()).get
     Thread.sleep(200) // need to wait for the query to actually terminate
     // push query does not terminate
     info(
-      s"are we done/failed yet? ${pushQuery.isComplete}/${pushQuery.isFailed}"
+      s"is the push query done/failed yet? ${pushQuery.isComplete}/${pushQuery.isFailed}"
     )
   }
 
@@ -89,8 +83,16 @@ class KsqlDbInsertSpec extends SpecBase(configPath = Some("ccloud.stag.local")) 
     Thread.sleep(200) // need to wait for the query to actually terminate
     // push query does not terminate
     info(
-      s"are we done/failed yet? ${pushQuery.isComplete}/${pushQuery.isFailed}"
+      s"is push query done/failed yet? ${pushQuery.isComplete}/${pushQuery.isFailed}"
     )
+  }
+
+  override def beforeEach(): Unit =
+    KsqlSpecHelper.deleteStream(streamName, ksqlClient, setup.adminClient)
+
+  override def afterAll(): Unit = {
+    ksqlClient.close()
+    super.afterAll()
   }
 
 }

@@ -172,7 +172,7 @@ class KsqlDbTableSpec extends SpecBase(configPath = Some("ccloud.stag.local")) {
                                     |EMIT CHANGES;
                                     |""".stripMargin
 
-        ksqlClient.executeStatement(createProductTableSql_simpleGroupBy).get
+      ksqlClient.executeStatement(createProductTableSql_simpleGroupBy).get
 
       // PULL queries dont support LIMIT clauses ... LIMIT 1;
       Thread.sleep(10000) // newly created table needs some time to populate

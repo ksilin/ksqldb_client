@@ -1,19 +1,21 @@
 package com.example.ksqldb
 
-import com.example.ksqldb.util.{KsqlSpecHelper, SpecBase}
-import io.confluent.ksql.api.client.{ KsqlObject, StreamedQueryResult}
+import com.example.ksqldb.util.{ KsqlSpecHelper, SpecBase }
+import io.confluent.ksql.api.client.{ KsqlObject, StreamedQueryResult }
 
 import java.time.Instant
-import monix.execution.Scheduler.{global => scheduler}
+import monix.execution.Scheduler.{ global => scheduler }
 import monix.reactive.Observable
 import org.reactivestreams.Publisher
 import org.scalatest.BeforeAndAfterEach
 
 import java.time.temporal.ChronoUnit
 
-class LateAndOutOfOrderSpec extends SpecBase(configPath = Some("ccloud.stag.local")) with BeforeAndAfterEach {
+class LateAndOutOfOrderSpec
+    extends SpecBase(configPath = Some("ccloud.stag.local"))
+    with BeforeAndAfterEach {
 
-  val pollingTimeout                   = 5000
+  val pollingTimeout = 5000
 
   override def afterAll(): Unit = {
     ksqlClient.close()

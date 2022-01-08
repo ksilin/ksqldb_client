@@ -1,6 +1,6 @@
 package com.example.ksqldb
 
-import com.example.ksqldb.util.{ KsqlSpecHelper, SpecBase}
+import com.example.ksqldb.util.{ KsqlSpecHelper, SpecBase }
 import io.confluent.ksql.api.client._
 import io.confluent.ksql.api.client.exception.KsqlClientException
 

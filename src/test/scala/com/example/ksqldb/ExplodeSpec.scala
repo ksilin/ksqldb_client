@@ -1,7 +1,7 @@
 package com.example.ksqldb
 
-import com.example.ksqldb.util.{ KsqlSpecHelper, SpecBase}
-import io.confluent.ksql.api.client.{KsqlArray, KsqlObject, Row, StreamedQueryResult}
+import com.example.ksqldb.util.{ KsqlSpecHelper, SpecBase }
+import io.confluent.ksql.api.client.{ KsqlArray, KsqlObject, Row, StreamedQueryResult }
 
 import scala.jdk.CollectionConverters._
 import scala.util.Random

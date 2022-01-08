@@ -69,6 +69,8 @@ object KsqlSpecHelper extends LogSupport {
     }
   }
 
+  // deletion is quite cumbersome as there is no good way to ID all dependencies
+  // need to fetch SQL for all streams and tables and compare substrings to ID relevant ones
   def deleteStream(
       streamName: String,
       client: Client,
@@ -76,6 +78,7 @@ object KsqlSpecHelper extends LogSupport {
       deleteSinkTopic: Boolean = true
   ): Unit = {
     val streams: mutable.Buffer[StreamInfo] = client.listStreams().get().asScala
+
     streams.find(_.getName.equalsIgnoreCase(streamName)).foreach { streamToDelete =>
       info(s"found existing stream: $streamToDelete")
 
@@ -85,18 +88,11 @@ object KsqlSpecHelper extends LogSupport {
         deleteTopic(topicName, adminClient)
       }
 
-      // TODO: use describe source instead of matching
-
-      // find the queries listening to this stream:
-      val queries: mutable.Seq[QueryInfo] = client.listQueries().get().asScala
-      // debug("existing queries: ")
-      // queries foreach debug
-
-      var relevantQueries = queries.filter(_.getSql.toUpperCase.contains(streamName.toUpperCase))
-
+      var relevantQueries = getQueriesForSource(client, streamName)
       debug(s"queries for stream $streamName: ")
       relevantQueries.foreach(q => debug(q.getId))
 
+      // terminate queries
       var retries = 0
       while (relevantQueries.nonEmpty && retries < 3) {
 
@@ -112,17 +108,46 @@ object KsqlSpecHelper extends LogSupport {
             case e: Throwable => debug(s"failed to terminate query ${qId}: $e")
           }
         }
-        val q = client.listQueries().get().asScala
-
         // TODO filter out the ones we failed on
-
         retries = retries + 1
-        relevantQueries = q.filter(_.getSql.toUpperCase.contains(streamName.toUpperCase))
+        relevantQueries = getQueriesForSource(
+          client,
+          streamName
+        ) //q.filter(_.getSql.toUpperCase.contains(streamName.toUpperCase))
       }
+      deleteTablesForName(client, streamName)
+      deleteStreamsForName(client, streamName)
+    }
+  }
 
-      val streamDeleted: ExecuteStatementResult =
-        client.executeStatement(s"DROP STREAM IF EXISTS $streamName;").get()
-      debug(s"stream $streamName deleted: $streamDeleted")
+  def getQueriesForSource(client: Client, sourceName: String): List[QueryInfo] = {
+    val q = client.listQueries().get().asScala.toList
+    q.filter(_.getSql.toUpperCase.contains(sourceName.toUpperCase))
+  }
+
+  def deleteStreamsForName(client: Client, name: String): List[ExecuteStatementResult] = {
+    val streams     = client.listStreams().get.asScala.toList
+    val streamNames = streams.map(_.getName)
+    deleteSourceForName(client, "STREAM")(streamNames, name)
+  }
+
+  def deleteTablesForName(client: Client, name: String): List[ExecuteStatementResult] = {
+    val tables     = client.listTables().get.asScala.toList
+    val tableNames = tables.map(_.getName)
+    deleteSourceForName(client, "TABLE")(tableNames, name)
+  }
+
+  private def deleteSourceForName(client: Client, kind: String)(sourceNames: List[String], name: String): List[ExecuteStatementResult] = {
+    val sourceDescriptions: List[SourceDescription] =
+      sourceNames.map(client.describeSource(_).get())
+    val relevantSources: List[SourceDescription] = sourceDescriptions.filter { sd =>
+      sd.sqlStatement().toUpperCase.contains(name.toUpperCase)
+    }
+    relevantSources map { s =>
+      val sourceDeleted: ExecuteStatementResult =
+        client.executeStatement(s"DROP ${kind.toUpperCase} IF EXISTS ${s.name()};").get()
+      debug(s"$kind ${s.name()} deleted: $sourceDeleted")
+      sourceDeleted
     }
   }
 
@@ -138,7 +163,6 @@ object KsqlSpecHelper extends LogSupport {
           val res: ExecuteStatementResult = client.executeStatement(s"TERMINATE ${q.getId};").get()
           debug(res)
         }
-
         try client.executeStatement(s"DROP TABLE IF EXISTS $tableName;").get
         catch {
           case e: Throwable => info(s"failed to drop table $tableName: $e")

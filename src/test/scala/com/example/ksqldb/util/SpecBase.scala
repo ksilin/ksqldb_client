@@ -7,14 +7,13 @@ import org.apache.kafka.clients.producer.ProducerConfig
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.freespec.AnyFreeSpec
 import org.scalatest.matchers.must.Matchers
-import wvlet.log.{LogLevel, LogSupport, Logger}
+import wvlet.log.{ LogLevel, LogSupport, Logger }
 
 import java.net.URL
 import java.time.Duration
 import java.util.Properties
 
-class SpecBase(     configFileUrl: Option[URL] = None,
-                    configPath: Option[String] = None)
+class SpecBase(configFileUrl: Option[URL] = None, configPath: Option[String] = None)
     extends AnyFreeSpec
     with Matchers
     with BeforeAndAfterAll
@@ -29,12 +28,13 @@ class SpecBase(     configFileUrl: Option[URL] = None,
 
   val setup: ClientSetup =
     ClientSetup(configFileUrl, configPath)
-  val ksqlClient: Client = setup.client
+  val ksqlClient: Client       = setup.client
   val adminClient: AdminClient = setup.adminClient
 
-  private val bootstrapServer: String = setup.commonProps.get(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG).asInstanceOf[String]
+  private val bootstrapServer: String =
+    setup.commonProps.get(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG).asInstanceOf[String]
   // 1 for local deployments, 3 for ccloud
-  val replicationFactor: Short = if(bootstrapServer.contains("cloud")) 3 else 1
+  val replicationFactor: Short = if (bootstrapServer.contains("cloud")) 3 else 1
   val pollTimeout: Duration    = Duration.ofMillis(1000)
 
 }

@@ -1,9 +1,9 @@
 package com.example.ksqldb.util
 
-import com.typesafe.config.{Config, ConfigFactory}
+import com.typesafe.config.{ Config, ConfigFactory }
 import org.apache.kafka.clients.CommonClientConfigs
 import org.apache.kafka.clients.producer.ProducerConfig
-import org.apache.kafka.common.config.{SaslConfigs, SslConfigs}
+import org.apache.kafka.common.config.{ SaslConfigs, SslConfigs }
 
 import java.net.URL
 import java.util.Properties
@@ -41,12 +41,11 @@ case object CCloudClientProps {
     fromConfig(config)
   }
 
-  def fromConfig(config: Config): CCloudClientProps ={
+  def fromConfig(config: Config): CCloudClientProps =
     CCloudClientProps(
       config.getString(s"${prefix}.bootstrap"),
       if (config.hasPath(s"${prefix}.key")) Some(config.getString(s"${prefix}.key")) else None,
       if (config.hasPath(s"${prefix}.secret")) Some(config.getString(s"${prefix}.secret")) else None
     )
-  }
 
 }

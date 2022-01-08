@@ -1,12 +1,12 @@
 package com.example.ksqldb
 
-import com.example.ksqldb.util.TestData.{User, random}
-import com.example.ksqldb.util.{ KsqlSpecHelper, RecordProcessor, SpecBase}
+import com.example.ksqldb.util.TestData.{ User, random }
+import com.example.ksqldb.util.{ KsqlSpecHelper, RecordProcessor, SpecBase }
 import com.fasterxml.jackson.databind.JsonNode
 import io.circe.generic.auto._
-import io.confluent.ksql.api.client.{ ExecuteStatementResult, Row, StreamedQueryResult}
-import org.apache.kafka.clients.consumer.{ConsumerConfig, ConsumerRecord, KafkaConsumer}
-import org.apache.kafka.clients.producer.{ProducerConfig, ProducerRecord}
+import io.confluent.ksql.api.client.{ ExecuteStatementResult, Row, StreamedQueryResult }
+import org.apache.kafka.clients.consumer.{ ConsumerConfig, ConsumerRecord, KafkaConsumer }
+import org.apache.kafka.clients.producer.{ ProducerConfig, ProducerRecord }
 import org.apache.kafka.common.TopicPartition
 
 import scala.jdk.CollectionConverters._
@@ -67,7 +67,10 @@ class ApiCallSpec extends SpecBase(configPath = Some("ccloud.stag.local")) {
       topic = responseTopicName,
       clientId = "responseProducer"
     )
-    RecordProcessor.fetchAndProcessRecords[String, JsonNode](requestConsumer, processRecord(responseProducer))
+    RecordProcessor.fetchAndProcessRecords[String, JsonNode](
+      requestConsumer,
+      processRecord(responseProducer)
+    )
 
     // fetch data from response stream
     (1 to userIds.size) foreach { _ =>
@@ -134,8 +137,9 @@ class ApiCallSpec extends SpecBase(configPath = Some("ccloud.stag.local")) {
 
   def prepareTest(): ExecuteStatementResult = {
 
-    val bootstrapServer: String = setup.commonProps.get(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG).toString
-    val rf: Short = if(bootstrapServer.contains("cloud")) 3 else 1
+    val bootstrapServer: String =
+      setup.commonProps.get(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG).toString
+    val rf: Short = if (bootstrapServer.contains("cloud")) 3 else 1
 
     KsqlSpecHelper.prepareTest(
       streamsToDelete = List(requestsStreamName, responseStreamName),

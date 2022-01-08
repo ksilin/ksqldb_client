@@ -1,6 +1,6 @@
 package com.example.ksqldb.util
 
-import org.apache.kafka.clients.consumer.{Consumer, ConsumerRecord, ConsumerRecords}
+import org.apache.kafka.clients.consumer.{ Consumer, ConsumerRecord, ConsumerRecords }
 import wvlet.log.LogSupport
 
 import java.time
@@ -10,15 +10,15 @@ object RecordProcessor extends LogSupport {
 
   // assumes consumer is already subscribed
   def fetchAndProcessRecords[K, V](
-                                    consumer: Consumer[K, V],
-                                    process: ConsumerRecord[K, V] => Unit = { r: ConsumerRecord[K, V] =>
-                                      info(s"${r.topic()} | ${r.partition()} | ${r.offset()}: ${r.key()} | ${r.value()}")
-                                    },
-                                    filter: ConsumerRecord[K, V] => Boolean = { _: ConsumerRecord[K, V] => true },
-                                    abortOnFirstRecord: Boolean = true,
-                                    maxAttempts: Int = 100,
-                                    pause: Int = 100
-                                  ): Iterable[ConsumerRecord[K, V]] = {
+      consumer: Consumer[K, V],
+      process: ConsumerRecord[K, V] => Unit = { r: ConsumerRecord[K, V] =>
+        info(s"${r.topic()} | ${r.partition()} | ${r.offset()}: ${r.key()} | ${r.value()}")
+      },
+      filter: ConsumerRecord[K, V] => Boolean = { _: ConsumerRecord[K, V] => true },
+      abortOnFirstRecord: Boolean = true,
+      maxAttempts: Int = 100,
+      pause: Int = 100
+  ): Iterable[ConsumerRecord[K, V]] = {
     val duration: time.Duration                    = java.time.Duration.ofMillis(100)
     var found                                      = false
     var records: Iterable[ConsumerRecord[K, V]]    = Nil

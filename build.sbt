@@ -41,16 +41,18 @@ lazy val library =
   new {
 
     object Version {
-      val kafka = "2.7.0"
-      val ksqlDb = "0.15.0"
-      val scalatest = "3.2.6"
-      val pureConfig = "0.14.1"
+      val kafka = "3.0.0"
+      val ksqlDb = "7.0.1"
+      val pureConfig = "0.17.1"
       val betterFiles = "3.9.1"
-      val kantan = "0.6.1"
-      val circe = "0.13.0"
-      val sttp = "3.0.0"
-      val airframeLog = "21.3.1"
-      val logback = "1.2.3"
+      val kantan = "0.6.2"
+      val circe = "0.14.1"
+      val sttp = "3.3.18"
+      val monix = "3.4.0"
+      val scalacheckFaker ="7.0.0"
+      val airframeLog = "21.12.1"
+      val logback = "1.2.10"
+      val scalatest = "3.2.10"
     }
 
     val clients = "org.apache.kafka" % "kafka-clients" % Version.kafka
@@ -63,7 +65,7 @@ lazy val library =
     val circe = "io.circe" %% "circe-core" % Version.circe
     val circeGeneric = "io.circe" %% "circe-generic" % Version.circe
     val circeParser = "io.circe" %% "circe-parser" % Version.circe
-    val monix = "io.monix" %% "monix" % "3.3.0"
+    val monix = "io.monix" %% "monix" % Version.monix
     val sttp                = "com.softwaremill.sttp.client3" %% "core"                      % Version.sttp
     val sttpBackendOkHttp   = "com.softwaremill.sttp.client3" %% "okhttp-backend"            % Version.sttp
     val airframeLog = "org.wvlet.airframe" %% "airframe-log" % Version.airframeLog
@@ -73,7 +75,7 @@ lazy val library =
     val mockServer = "org.mock-server" % "mockserver-netty" % "5.11.2"
     val mockServerClient = "org.mock-server" % "mockserver-client-java" % "5.11.2"
     val randomDataGen = "com.danielasfregola" %% "random-data-generator" % "2.9"
-    val scalaFaker = "io.github.etspaceman" %% "scalacheck-faker" % "6.0.0"
+    val scalaFaker = "io.github.etspaceman" %% "scalacheck-faker" % Version.scalacheckFaker
 
     val scalatest = "org.scalatest" %% "scalatest" % Version.scalatest
   }
@@ -84,7 +86,7 @@ lazy val library =
 
 lazy val commonSettings =
   Seq(
-    scalaVersion := "2.13.5",
+    scalaVersion := "2.13.7",
     organization := "example.com",
     organizationName := "ksilin",
     startYear := Some(2020),
@@ -101,15 +103,11 @@ lazy val commonSettings =
     // find latest repo here: https://docs.ksqldb.io/en/latest/developer-guide/ksqldb-clients/java-client/
     resolvers ++= Seq("confluent" at "https://packages.confluent.io/maven",
       "ksqlDb" at "https://ksqldb-maven.s3.amazonaws.com/maven",
-      "confluentJenkins" at "https://jenkins-confluent-packages-beta-maven.s3.amazonaws.com/6.1.0-beta200715032424/1/maven/",
-      "confluentJenkins2" at "https://jenkins-confluent-packages-beta-maven.s3.amazonaws.com/6.1.0-beta200916191548/1/maven/",
-      "confluentJenkins3" at "https://jenkins-confluent-packages-beta-maven.s3.amazonaws.com/6.1.0-beta201006024150/1/maven/",
-      "confluentJenkins0.15" at "https://jenkins-confluent-packages-beta-maven.s3.amazonaws.com/6.2.0-beta201122193350-cp5/3/maven/",
       Resolver.sonatypeRepo("releases"),
       Resolver.bintrayRepo("wolfendale", "maven"),
       Resolver.mavenLocal
     ),
     scalafmtOnCompile := true,
-    fork in Test := true, // required for setting env vars
+    Test / fork  := true, // required for setting env vars
     // envVars in Test := Map("RANDOM_DATA_GENERATOR_SEED" -> "9153932137467828920"),
   )
