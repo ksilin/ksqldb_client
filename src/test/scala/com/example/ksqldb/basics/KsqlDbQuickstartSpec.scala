@@ -8,6 +8,7 @@ import com.example.ksqldb.util.{KsqlSpecHelper, SpecBase}
 import io.confluent.ksql.api.client.{ExecuteStatementResult, KsqlObject, Row, SourceDescription, StreamInfo, StreamedQueryResult}
 import kantan.csv._
 import kantan.csv.ops._
+import kantan.csv.generic._
 
 import java.io.InputStream
 import java.time.Duration
@@ -16,6 +17,7 @@ import java.util.concurrent.CompletableFuture
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration._
 import scala.concurrent.{Await, Future}
+import scala.jdk.FutureConverters._
 import scala.jdk.CollectionConverters._
 
 class KsqlDbQuickstartSpec extends SpecBase(configPath = Some("ccloud.stag.local")) {
@@ -97,7 +99,7 @@ class KsqlDbQuickstartSpec extends SpecBase(configPath = Some("ccloud.stag.local
       rl: RiderLocation =>
         val rowToInsert                     = ksqlObjectFromRiderLocation(rl)
         val insert: CompletableFuture[Void] = ksqlClient.insertInto(streamName, rowToInsert)
-        toScalaFuture(insert).map(_ => println(s"inserted $rl"))
+        insert.asScala.map(_ => println(s"inserted $rl"))
     }
     Await.result(insertDriverLocations, 30.seconds)
     info("inserted all rider locations")

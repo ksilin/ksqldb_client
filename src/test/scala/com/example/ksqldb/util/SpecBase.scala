@@ -1,6 +1,5 @@
 package com.example.ksqldb.util
 
-import com.example.ksqldb.FutureConverter
 import io.confluent.ksql.api.client.Client
 import org.apache.kafka.clients.admin.AdminClient
 import org.apache.kafka.clients.producer.ProducerConfig
@@ -17,14 +16,14 @@ class SpecBase(configFileUrl: Option[URL] = None, configPath: Option[String] = N
     extends AnyFreeSpec
     with Matchers
     with BeforeAndAfterAll
-    with FutureConverter
     with LogSupport {
 
   EnvVarUtil.setEnv("RANDOM_DATA_GENERATOR_SEED", "9153932137467828920")
-  Logger.setDefaultLogLevel(LogLevel.DEBUG)
+  Logger.setDefaultLogLevel(LogLevel.INFO)
   val loglevelProps = new Properties()
   loglevelProps.setProperty("org.apache.kafka", LogLevel.WARN.name)
-  //Logger.setLogLevels(loglevelProps)
+  loglevelProps.setProperty("security", LogLevel.INFO.name)
+  Logger.setLogLevels(loglevelProps)
 
   val setup: ClientSetup =
     ClientSetup(configFileUrl, configPath)
