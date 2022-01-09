@@ -177,7 +177,7 @@ class ExplodeSpec extends SpecBase(configPath = Some("ccloud.stag.local")) {
     (1 to 2) foreach { i =>
       val ksqlObject = makeKsqlObjectTwoArrays(i)
       info("source event: " + ksqlObject)
-      setup.client.insertInto(streamName, ksqlObject).get()
+      ksqlClient.insertInto(streamName, ksqlObject).get()
     }
 
     val querySql               = s"""SELECT *
@@ -305,7 +305,7 @@ class ExplodeSpec extends SpecBase(configPath = Some("ccloud.stag.local")) {
 
     (1 to 10) foreach { i =>
       val ksqlObject = makeKsqlObjectSingleArray(i)
-      setup.client.insertInto(streamName, ksqlObject).get()
+      ksqlClient.insertInto(streamName, ksqlObject).get()
     }
     (1 to 10) foreach { _ =>
       val rowFromCollectTable: Row = colQ.poll(pollTimeout)

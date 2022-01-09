@@ -113,7 +113,7 @@ class CubeSpec extends SpecBase(configPath = Some("ccloud.stag.local")) {
 
     (1 to 2) foreach { i =>
       val ksqlObject = makeKsqlObjectScalar(i)
-      setup.client.insertInto(streamName, ksqlObject).get()
+      ksqlClient.insertInto(streamName, ksqlObject).get()
     }
 
     val querySql               = s"""SELECT *
@@ -174,7 +174,7 @@ class CubeSpec extends SpecBase(configPath = Some("ccloud.stag.local")) {
 
     (1 to 2) foreach { i =>
       val ksqlObject = makeKsqlObjectTwoArrays(i)
-      setup.client.insertInto(streamName, ksqlObject).get()
+      ksqlClient.insertInto(streamName, ksqlObject).get()
     }
 
     val querySql               = s"""SELECT *

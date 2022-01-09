@@ -218,7 +218,7 @@ class KsqlDbTableSpec extends SpecBase(configPath = Some("ccloud.stag.local")) {
   }
 
   override def afterAll(): Unit = {
-    setup.client.close()
+    ksqlClient.close()
     super.afterAll()
   }
 
