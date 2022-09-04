@@ -10,11 +10,11 @@ import sttp.client3.okhttp.OkHttpSyncBackend
 import scala.collection.mutable
 import scala.jdk.CollectionConverters._
 
-class KsqlDbRestApiSpec extends SpecBase(configPath = Some("ccloud.stag.local")) {
+class KsqlDbRestApiSpec extends SpecBase(configPath = Some("ccloud.ps.ksilin.basic_test")) {
 
   val backend: SttpBackend[Identity, capabilities.WebSockets] = OkHttpSyncBackend()
-  val host: String                                            = setup.clientProps.host
-  val port: Int                                               = setup.clientProps.port
+  val host: String                                            = setup.ksqlClientProps.host
+  val port: Int                                               = setup.ksqlClientProps.port
 
   // healthcheck response example:
   /* {

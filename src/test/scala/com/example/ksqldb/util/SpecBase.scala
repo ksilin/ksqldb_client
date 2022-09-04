@@ -1,12 +1,12 @@
 package com.example.ksqldb.util
 
-import io.confluent.ksql.api.client.{Client, ClientOptions}
+import io.confluent.ksql.api.client.{ Client, ClientOptions }
 import org.apache.kafka.clients.admin.AdminClient
 import org.apache.kafka.clients.producer.ProducerConfig
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.freespec.AnyFreeSpec
 import org.scalatest.matchers.must.Matchers
-import wvlet.log.{LogLevel, LogSupport, Logger}
+import wvlet.log.{ LogLevel, LogSupport, Logger }
 
 import java.net.URL
 import java.time.Duration
@@ -27,7 +27,7 @@ class SpecBase(configFileUrl: Option[URL] = None, configPath: Option[String] = N
 
   val setup: ClientSetup =
     ClientSetup(configFileUrl, configPath)
-  val ksqlClient: Client       = ksqlClientFromKslqClientProps(setup.clientProps)
+  val ksqlClient: Client       = ksqlClientFromKslqClientProps(setup.ksqlClientProps)
   val adminClient: AdminClient = setup.adminClient
 
   private val bootstrapServer: String =
@@ -38,10 +38,21 @@ class SpecBase(configFileUrl: Option[URL] = None, configPath: Option[String] = N
 
   def ksqlClientFromKslqClientProps(props: KsqlClientProps): Client = {
 
-    val clientOptions: ClientOptions = ClientOptions
-      .create()
-      .setHost(props.host)
-      .setPort(props.port)
+    val clientOptions: ClientOptions = {
+      val opt: ClientOptions = ClientOptions
+        .create()
+        .setHost(props.host)
+        .setPort(props.port)
+
+      if (props.port == 443) opt.setUseTls(true)
+
+      props.apiKey.foreach { k =>
+        props.apiSecret.foreach { s =>
+          opt.setBasicAuthCredentials(k, s)
+        }
+      }
+      opt
+    }
 
     props.apiKey.zip(props.apiSecret) foreach { case (key, secret) =>
       clientOptions.setBasicAuthCredentials(key, secret)

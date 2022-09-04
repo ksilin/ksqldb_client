@@ -1,5 +1,7 @@
 package com.example.ksqldb.util
 
+import java.util
+
 object EnvVarUtil {
 
   // generates a warning:
@@ -7,7 +9,7 @@ object EnvVarUtil {
   // looks like the only way around it is to use --add-opens
   def setEnv(key: String, value: String): Unit =
     try {
-      val env   = System.getenv
+      val env: util.Map[String, String] = System.getenv
       val cl    = env.getClass
       val field = cl.getDeclaredField("m")
       field.setAccessible(true)

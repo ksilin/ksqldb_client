@@ -12,7 +12,7 @@ import java.util.concurrent.ExecutionException
 import scala.collection.mutable
 import scala.jdk.CollectionConverters._
 
-class KsqlDbTableSpec extends SpecBase(configPath = Some("ccloud.stag.local")) {
+class KsqlDbTableSpec extends SpecBase(configPath = Some("ccloud.ps.ksilin.basic_test")) {
 
   val users: Seq[User]        = random[User](50).distinctBy(_.id).take(5)
   val userIds: Seq[String]    = users.map(_.id)

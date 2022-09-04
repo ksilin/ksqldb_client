@@ -8,7 +8,7 @@ import java.util.concurrent.ExecutionException
 import scala.jdk.CollectionConverters._
 import scala.util.Random
 
-class CubeSpec extends SpecBase(configPath = Some("ccloud.stag.local")) {
+class CubeSpec extends SpecBase(configPath = Some("ccloud.ps.ksilin.basic_test")) {
 
   override def afterAll(): Unit = {
     ksqlClient.close()

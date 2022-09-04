@@ -2,6 +2,7 @@ package com.example.ksqldb.util
 
 import com.typesafe.config.{ Config, ConfigFactory }
 import org.apache.kafka.clients.CommonClientConfigs
+import org.apache.kafka.clients.consumer.ConsumerConfig
 import org.apache.kafka.clients.producer.ProducerConfig
 import org.apache.kafka.common.config.{ SaslConfigs, SslConfigs }
 
@@ -11,11 +12,13 @@ import java.util.Properties
 case class CCloudClientProps(
     bootstrapServer: String,
     apiKey: Option[String],
-    apiSecret: Option[String]
+    apiSecret: Option[String],
+    principal: Option[String]
 ) {
 
   val clientProps: Properties = new Properties()
   clientProps.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServer)
+  clientProps.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest")
 
   apiKey zip apiSecret foreach { case (k, s) =>
     clientProps.put(SslConfigs.SSL_ENDPOINT_IDENTIFICATION_ALGORITHM_CONFIG, "https")
@@ -45,7 +48,10 @@ case object CCloudClientProps {
     CCloudClientProps(
       config.getString(s"${prefix}.bootstrap"),
       if (config.hasPath(s"${prefix}.key")) Some(config.getString(s"${prefix}.key")) else None,
-      if (config.hasPath(s"${prefix}.secret")) Some(config.getString(s"${prefix}.secret")) else None
+      if (config.hasPath(s"${prefix}.secret")) Some(config.getString(s"${prefix}.secret"))
+      else None,
+      if (config.hasPath(s"${prefix}.principal")) Some(config.getString(s"${prefix}.principal"))
+      else None
     )
 
 }

@@ -12,7 +12,7 @@ import org.scalatest.BeforeAndAfterEach
 import java.time.temporal.ChronoUnit
 
 class LateAndOutOfOrderSpec
-    extends SpecBase(configPath = Some("ccloud.stag.local"))
+    extends SpecBase(configPath = Some("ccloud.ps.ksilin.basic_test"))
     with BeforeAndAfterEach {
 
   val pollingTimeout = 5000

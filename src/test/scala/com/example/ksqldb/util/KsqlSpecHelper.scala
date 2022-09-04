@@ -137,7 +137,10 @@ object KsqlSpecHelper extends LogSupport {
     deleteSourceForName(client, "TABLE")(tableNames, name)
   }
 
-  private def deleteSourceForName(client: Client, kind: String)(sourceNames: List[String], name: String): List[ExecuteStatementResult] = {
+  private def deleteSourceForName(
+      client: Client,
+      kind: String
+  )(sourceNames: List[String], name: String): List[ExecuteStatementResult] = {
     val sourceDescriptions: List[SourceDescription] =
       sourceNames.map(client.describeSource(_).get())
     val relevantSources: List[SourceDescription] = sourceDescriptions.filter { sd =>

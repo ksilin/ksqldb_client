@@ -8,7 +8,7 @@ import scala.util.Random
 
 case class Xy(x: Int, y: Int)
 
-class ExplodeSpec extends SpecBase(configPath = Some("ccloud.stag.local")) {
+class ExplodeSpec extends SpecBase(configPath = Some("ccloud.ps.ksilin.basic_test")) {
 
   override def afterAll(): Unit = {
     ksqlClient.close()

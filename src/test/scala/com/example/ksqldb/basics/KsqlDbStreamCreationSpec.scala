@@ -6,7 +6,7 @@ import io.confluent.ksql.api.client.{ StreamInfo, TopicInfo }
 import scala.collection.mutable
 import scala.jdk.CollectionConverters._
 
-class KsqlDbStreamCreationSpec extends SpecBase(configPath = Some("ccloud.stag.local")) {
+class KsqlDbStreamCreationSpec extends SpecBase(configPath = Some("ccloud.ps.ksilin.basic_test")) {
 
   // stream can be simply deleted without stopping it
   // streams created as SELECT must be stopped before removal

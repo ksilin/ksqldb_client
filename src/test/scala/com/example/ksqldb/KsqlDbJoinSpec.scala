@@ -10,7 +10,7 @@ import org.scalacheck.Arbitrary
 
 import scala.util.Random
 
-class KsqlDbJoinSpec extends SpecBase(configPath = Some("ccloud.stag.local")) {
+class KsqlDbJoinSpec extends SpecBase(configPath = Some("ccloud.ps.ksilin.basic_test")) {
 
   val users: Seq[User]     = random[User](50).distinctBy(_.id).take(5)
   val userIds: Seq[String] = users.map(_.id)

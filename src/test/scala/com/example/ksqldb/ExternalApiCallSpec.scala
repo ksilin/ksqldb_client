@@ -1,7 +1,7 @@
 package com.example.ksqldb
 
 import com.example.ksqldb.util.TestData.{ User, random }
-import com.example.ksqldb.util.{ KsqlSpecHelper, RecordProcessor, SpecBase }
+import com.example.ksqldb.util.{ KafkaSpecHelper, KsqlSpecHelper, SpecBase }
 import com.fasterxml.jackson.databind.JsonNode
 import io.circe.generic.auto._
 import io.confluent.ksql.api.client.{ ExecuteStatementResult, Row, StreamedQueryResult }
@@ -15,7 +15,7 @@ import scala.util.Random
 
 case class RequestMsg(id: String, userId: String, timestamp: Long)
 
-class ApiCallSpec extends SpecBase(configPath = Some("ccloud.stag.local")) {
+class ApiCallSpec extends SpecBase(configPath = Some("ccloud.ps.ksilin.basic_test")) {
 
   val users: Seq[User]           = random[User](50).distinctBy(_.id).take(5)
   val userIds: Seq[String]       = users.map(_.id)
@@ -67,7 +67,7 @@ class ApiCallSpec extends SpecBase(configPath = Some("ccloud.stag.local")) {
       topic = responseTopicName,
       clientId = "responseProducer"
     )
-    RecordProcessor.fetchAndProcessRecords[String, JsonNode](
+    KafkaSpecHelper.fetchAndProcessRecords[String, JsonNode](
       requestConsumer,
       processRecord(responseProducer)
     )
