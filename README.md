@@ -11,6 +11,21 @@ explicitly, by submitting any copyrighted material via pull request, email, or o
 agree to license the material under the project's open source license and warrant that you have the
 legal authority to do so.
 
+## SA roles
+
+confluent iam rbac role-binding create --principal User:sa-v7gjxn --role CloudClusterAdmin --environment env-nvv5xz --cloud-cluster lkc-do175y
++-----------+-------------------+
+| Principal | User:sa-v7gjxn    |
+| Role      | CloudClusterAdmin |
++-----------+-------------------+
+
+## Tests to be added
+
+* understand Avro schemas being registered
+
+* how AVRO schemas change
+
+
 ## License ##
 
 This code is open source software licensed under the

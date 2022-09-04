@@ -1,4 +1,4 @@
-ccloud.stag.local {
+ccloud.ps.ksilin.basic_test {
   ksql{
     host: localhost
     port: 8088
