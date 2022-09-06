@@ -35,8 +35,10 @@ case class JsonStringProducer[K, V](
   def makeRecords(recordMap: Iterable[(K, V)]): Iterable[ProducerRecord[K, String]] =
     recordMap.map { case (k, v) => makeRecord(k, v) }
 
-  def makeRecord(key: K, value: V): ProducerRecord[K, String] =
-    new ProducerRecord[K, String](topic, key, value.asJson.noSpaces)
+  def makeRecord(key: K, value: V): ProducerRecord[K, String] = {
+    val v = if(null == value) null else  value.asJson.noSpaces
+    new ProducerRecord[K, String](topic, key, v)
+  }
 
   def run(r: ProducerRecord[K, String]): Unit = {
     info(s"producing $r")
