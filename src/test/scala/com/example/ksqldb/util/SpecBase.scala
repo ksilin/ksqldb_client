@@ -1,16 +1,18 @@
 package com.example.ksqldb.util
 
-import io.confluent.ksql.api.client.{ Client, ClientOptions }
+import io.confluent.ksql.api.client.{Client, ClientOptions}
 import org.apache.kafka.clients.admin.AdminClient
 import org.apache.kafka.clients.producer.ProducerConfig
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.freespec.AnyFreeSpec
 import org.scalatest.matchers.must.Matchers
-import wvlet.log.{ LogLevel, LogSupport, Logger }
+import wvlet.log.{LogLevel, LogSupport, Logger}
 
 import java.net.URL
 import java.time.Duration
+import java.util
 import java.util.Properties
+import scala.jdk.CollectionConverters._
 
 class SpecBase(configFileUrl: Option[URL] = None, configPath: Option[String] = None)
     extends AnyFreeSpec
@@ -35,6 +37,11 @@ class SpecBase(configFileUrl: Option[URL] = None, configPath: Option[String] = N
   // 1 for local deployments, 3 for ccloud
   val replicationFactor: Short = if (bootstrapServer.contains("cloud")) 3 else 1
   val pollTimeout: Duration    = Duration.ofMillis(1000)
+
+  // not clear why ccloud accepts the deprecated version and explodes on the new one
+  // https://confluent.slack.com/archives/C337JP2F8/p1662450431689659
+  //val queryProperties: util.Map[String, Object] = Map[String, Object]("auto.offset.reset" -> "earliest", "statestore.cache.max.bytes" -> "0").asJava
+  val queryProperties: util.Map[String, Object] = Map[String, Object]("auto.offset.reset" -> "earliest", "cache.max.bytes.buffering" -> "0").asJava
 
   def ksqlClientFromKslqClientProps(props: KsqlClientProps): Client = {
 
