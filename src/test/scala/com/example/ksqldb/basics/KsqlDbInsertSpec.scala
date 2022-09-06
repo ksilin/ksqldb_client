@@ -2,7 +2,7 @@ package com.example.ksqldb.basics
 
 import com.example.ksqldb.util._
 import io.confluent.ksql.api.client.exception.KsqlClientException
-import io.confluent.ksql.api.client.{ ExecuteStatementResult, KsqlObject, Row, StreamedQueryResult }
+import io.confluent.ksql.api.client.{ KsqlObject, Row, StreamedQueryResult }
 import monix.execution.Scheduler.{ global => scheduler }
 import monix.reactive.Observable
 import org.reactivestreams.Publisher
@@ -16,7 +16,7 @@ import scala.jdk.FutureConverters._
 import scala.jdk.CollectionConverters._
 
 class KsqlDbInsertSpec
-    extends SpecBase(configPath = Some("ccloud.ps.ksilin.basic_test"))
+    extends SpecBase(configPath = Some("ccloud.ps.ksilin.dedicated_ksilin"))
     with BeforeAndAfterEach {
 
   val streamName = "toBeInsertedInto"
