@@ -10,7 +10,7 @@ import org.scalacheck.Arbitrary
 
 import scala.util.Random
 
-class KsqlDbJoinSpec extends SpecBase(configPath = Some("ccloud.ps.ksilin.basic_test")) {
+class KsqlDbJoinSpec extends SpecBase(configPath = Some("ccloud.ps.ksilin.dedicated_ksilin")) {
 
   val users: Seq[User]     = random[User](50).distinctBy(_.id).take(5)
   val userIds: Seq[String] = users.map(_.id)
@@ -65,7 +65,13 @@ class KsqlDbJoinSpec extends SpecBase(configPath = Some("ccloud.ps.ksilin.basic_
 
     val createUsersTableSql =
       s"""CREATE TABLE $userTableName (
-   ^
+         | id VARCHAR PRIMARY KEY,
+         | name VARCHAR,
+         | address STRUCT <
+         | street VARCHAR,
+         | building VARCHAR,
+         | index VARCHAR
+         | >
          | ) WITH (
          | KAFKA_TOPIC = '$userTopicName',
          | VALUE_FORMAT = 'JSON'

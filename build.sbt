@@ -12,7 +12,7 @@ lazy val ksqldb_client =
         library.kafka,
         library.ksqlDbClient,
         library.ksqlDbRestApp,
-        library.pureConfig,
+        //library.pureConfig,
         library.betterFiles,
         library.kantancsv,
         library.kantangeneric,
@@ -56,7 +56,7 @@ lazy val library =
       val monix = "3.4.1"
       val scalacheckFaker ="7.0.0"
       val airframeLog = "22.8.0"
-      val logback = "1.4.0"
+      val logback = "1.2.10"
       val scalatest = "3.2.13"
       val testContainers = "0.2.1"
       val restAssured = "5.1.1"
